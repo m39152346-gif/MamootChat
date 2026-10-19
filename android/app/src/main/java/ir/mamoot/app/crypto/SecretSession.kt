@@ -56,7 +56,21 @@ class SecretSession(
     )
 
     data class KxEnvelope(val stage: String, val exchangeId: String, val ephemeralPubB64: String, val signatureB64: String)
-    data class MsgEnvelope(val fingerprint: String, val seq: Long, val nonceB64: String, val ciphertextB64: String)
+    data class MsgEnvelope(
+        val fingerprint: String,
+        val seq: Long,
+        val nonceB64: String,
+        val ciphertextB64: String,
+        val control: Boolean = false,
+    )
+
+    /** Decrypted payload. Control payloads ride in `MAM1.c.` envelopes. */
+    data class Plain(
+        val text: String,
+        val ttlSeconds: Int = 0,
+        val endOfSecret: Boolean = false,
+        val reviseTargetId: String? = null,
+    )
 
     var current: Epoch? = null
         private set
@@ -185,15 +199,30 @@ class SecretSession(
     }
 
     // ---------------------------------------------------------- messages
-    fun encrypt(plaintext: String): String {
+    fun encrypt(plaintext: String, ttlSeconds: Int = 0): String {
+        val payload = if (ttlSeconds > 0) {
+            byteArrayOf(0x44) + "$ttlSeconds\n$plaintext".toByteArray(Charsets.UTF_8) // 'D' = timed
+        } else {
+            byteArrayOf(0x54) + plaintext.toByteArray(Charsets.UTF_8) // 'T' = text
+        }
+        return encryptPayload(payload, 'm')
+    }
+
+    /** Control: "end this secret session" (both sides fall back to plain chat). */
+    fun encryptControlEnd(): String = encryptPayload(byteArrayOf(0x58), 'c') // 'X'
+
+    /** Control: replace the text of one earlier encrypted message. */
+    fun encryptRevise(targetServerId: String, newText: String): String =
+        encryptPayload(byteArrayOf(0x52) + "$targetServerId\n$newText".toByteArray(Charsets.UTF_8), 'c') // 'R'
+
+    private fun encryptPayload(payload: ByteArray, stage: Char): String {
         val epoch = current ?: throw NoSessionException()
         val seq = epoch.sendSeq
         val messageKey = Crypto.hmacSha256(epoch.sendChain, byteArrayOf(1))
         val nextChain = Crypto.hmacSha256(epoch.sendChain, byteArrayOf(2))
         val nonce = Crypto.randomBytes(12)
-        val payload = byteArrayOf(0x54) + plaintext.toByteArray(Charsets.UTF_8) // 'T'
         val ciphertext = Crypto.aesGcmEncrypt(messageKey, nonce, payload, aad(myUserId, epoch.fingerprint, seq))
-        val envelope = "MAM1.m.${epoch.fingerprint}.$seq.${Crypto.b64(nonce)}.${Crypto.b64(ciphertext)}"
+        val envelope = "MAM1.$stage.${epoch.fingerprint}.$seq.${Crypto.b64(nonce)}.${Crypto.b64(ciphertext)}"
         if (envelope.length > MAX_ENVELOPE_CHARS) throw MessageTooLongException()
         epoch.sendChain = nextChain
         epoch.sendSeq = seq + 1
@@ -201,7 +230,7 @@ class SecretSession(
         return envelope
     }
 
-    fun decrypt(body: String): String {
+    fun decrypt(body: String): Plain {
         val msg = parseMsg(body) ?: throw DecryptException("bad envelope")
         var promoteAfterSuccess = false
         val epoch: Epoch = when {
@@ -249,14 +278,30 @@ class SecretSession(
         return plain
     }
 
-    private fun tryDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): String {
-        val plain = try {
+    private fun tryDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): Plain {
+        val raw = try {
             Crypto.aesGcmDecrypt(key, nonce, ciphertext, aad)
         } catch (e: Exception) {
             throw DecryptException("authentication failed")
         }
-        if (plain.isEmpty() || plain[0] != 0x54.toByte()) throw DecryptException("bad payload")
-        return String(plain, 1, plain.size - 1, Charsets.UTF_8)
+        if (raw.isEmpty()) throw DecryptException("bad payload")
+        val rest = String(raw, 1, raw.size - 1, Charsets.UTF_8)
+        return when (raw[0]) {
+            0x54.toByte() -> Plain(rest) // 'T'
+            0x44.toByte() -> { // 'D' timed: "<ttlSeconds>\n<text>"
+                val nl = rest.indexOf('\n')
+                if (nl <= 0) throw DecryptException("bad timed payload")
+                val ttl = rest.substring(0, nl).toIntOrNull() ?: throw DecryptException("bad ttl")
+                Plain(rest.substring(nl + 1), ttlSeconds = ttl)
+            }
+            0x58.toByte() -> Plain("", endOfSecret = true) // 'X'
+            0x52.toByte() -> { // 'R' revise: "<targetServerId>\n<newText>"
+                val nl = rest.indexOf('\n')
+                if (nl <= 0) throw DecryptException("bad revise payload")
+                Plain(rest.substring(nl + 1), reviseTargetId = rest.substring(0, nl))
+            }
+            else -> throw DecryptException("bad payload")
+        }
     }
 
     private fun aad(senderUserId: String, fingerprint: String, seq: Long): ByteArray =
@@ -303,7 +348,9 @@ class SecretSession(
         const val MAX_PLAINTEXT_CHARS = 1500
 
         fun isKx(body: String): Boolean = body.startsWith("MAM1.k")
-        fun isEncryptedMessage(body: String): Boolean = body.startsWith("MAM1.m.")
+        fun isControl(body: String): Boolean = body.startsWith("MAM1.c.")
+        fun isEncryptedMessage(body: String): Boolean =
+            body.startsWith("MAM1.m.") || body.startsWith("MAM1.c.")
 
         fun parseKx(body: String): KxEnvelope? {
             val parts = body.split(".")
@@ -314,9 +361,10 @@ class SecretSession(
 
         fun parseMsg(body: String): MsgEnvelope? {
             val parts = body.split(".")
-            if (parts.size != 6 || parts[0] != "MAM1" || parts[1] != "m") return null
+            if (parts.size != 6 || parts[0] != "MAM1") return null
+            if (parts[1] != "m" && parts[1] != "c") return null
             val seq = parts[3].toLongOrNull() ?: return null
-            return MsgEnvelope(parts[2], seq, parts[4], parts[5])
+            return MsgEnvelope(parts[2], seq, parts[4], parts[5], control = parts[1] == "c")
         }
 
         fun deserialize(serialized: String): SecretSession {

@@ -43,6 +43,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ui.LockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

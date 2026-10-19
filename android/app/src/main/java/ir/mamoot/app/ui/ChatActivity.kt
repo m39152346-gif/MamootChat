@@ -9,6 +9,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -21,6 +23,7 @@ import ir.mamoot.app.R
 import ir.mamoot.app.Threads
 import ir.mamoot.app.net.Conversation
 import ir.mamoot.app.net.MemberInfo
+import ir.mamoot.app.sync.PageResult
 import ir.mamoot.app.sync.SessionUiState
 import ir.mamoot.app.sync.UiConversation
 import ir.mamoot.app.sync.UiMessage
@@ -34,19 +37,31 @@ class ChatActivity : Activity() {
     private lateinit var lvMessages: ListView
     private lateinit var etMessage: EditText
     private lateinit var btnSend: Button
+    private lateinit var btnTtl: Button
     private lateinit var tvChatTitle: TextView
     private lateinit var tvChatStatus: TextView
     private lateinit var layoutBanner: LinearLayout
     private lateinit var tvBannerText: TextView
     private lateinit var btnBannerAction: Button
+    private lateinit var btnLoadOlder: Button
+    private lateinit var layoutSearch: LinearLayout
+    private lateinit var etChatSearch: EditText
 
     private val handler = Handler(Looper.getMainLooper())
     private var syncing = false
     private var pollIntervalMs = 2_500L
     private var lastMessageCount = -1
     private var currentState: SessionUiState = SessionUiState.NO_SESSION
+    private var lastNotice: String? = null
     private var firstLoadDone = false
     private var resumed = false
+    private var hasMoreOlder = false
+    private var loadingOlder = false
+    private var ttlChoiceSeconds = 0
+    private var iBlockedPeer = false
+    private var searchMatchIds: List<Long> = emptyList()
+    private var searchIndex = -1
+    private var searchSeq = 0
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -63,11 +78,15 @@ class ChatActivity : Activity() {
         lvMessages = findViewById(R.id.lvMessages)
         etMessage = findViewById(R.id.etMessage)
         btnSend = findViewById(R.id.btnSend)
+        btnTtl = findViewById(R.id.btnTtl)
         tvChatTitle = findViewById(R.id.tvChatTitle)
         tvChatStatus = findViewById(R.id.tvChatStatus)
         layoutBanner = findViewById(R.id.layoutBanner)
         tvBannerText = findViewById(R.id.tvBannerText)
         btnBannerAction = findViewById(R.id.btnBannerAction)
+        btnLoadOlder = findViewById(R.id.btnLoadOlder)
+        layoutSearch = findViewById(R.id.layoutSearch)
+        etChatSearch = findViewById(R.id.etChatSearch)
 
         val avatar = findViewById<TextView>(R.id.tvChatAvatar)
         val peer = conv.members.firstOrNull { it.id != app.api.myUserId }
@@ -76,6 +95,9 @@ class ChatActivity : Activity() {
         avatar.text = UiUtil.initials(title)
         avatar.background.mutate().setTint(UiUtil.avatarColor(peer?.id ?: conv.id))
         tvChatStatus.text = "…"
+
+        ttlChoiceSeconds = app.repo.getTtlChoice(conv.id)
+        updateTtlButton()
 
         adapter = MessageAdapter(this)
         adapter.isGroup = conv.kind == "group"
@@ -86,16 +108,43 @@ class ChatActivity : Activity() {
         }
 
         findViewById<Button>(R.id.btnBack).setOnClickListener { finish() }
-        findViewById<Button>(R.id.btnSecurity).setOnClickListener { showSecurityDialog() }
+        findViewById<Button>(R.id.btnSecurity).setOnClickListener {
+            if (conv.kind == "group") showGroupInfo() else showSecurityDialog()
+        }
+        findViewById<LinearLayout>(R.id.layoutChatHeader).setOnClickListener {
+            if (conv.kind == "group") showGroupInfo() else showPeerProfile()
+        }
         btnSend.setOnClickListener { sendCurrentText() }
+        btnTtl.setOnClickListener { showTtlPicker() }
+        btnLoadOlder.setOnClickListener { loadOlder() }
+        findViewById<Button>(R.id.btnChatSearch).setOnClickListener { toggleSearch(true) }
+        findViewById<Button>(R.id.btnSearchClose).setOnClickListener { toggleSearch(false) }
+        findViewById<Button>(R.id.btnSearchNext).setOnClickListener { jumpToMatch(+1) }
+        findViewById<Button>(R.id.btnSearchPrev).setOnClickListener { jumpToMatch(-1) }
+        etChatSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                val q = s?.toString()?.trim().orEmpty()
+                val seq = ++searchSeq
+                handler.removeCallbacksAndMessages(SEARCH_TOKEN)
+                if (q.isEmpty()) {
+                    searchMatchIds = emptyList()
+                    searchIndex = -1
+                    return
+                }
+                handler.postDelayed({ runSearch(q, seq) }, SEARCH_TOKEN, 350)
+            }
+        })
 
         app.repo.localMessages(conv.id) { result ->
-            result.onSuccess { messages ->
-                applyMessages(messages, forceScroll = true)
+            result.onSuccess { page ->
+                applyPage(page, forceScroll = true)
                 firstLoadDone = true
             }
         }
         enrichConversationFromServer()
+        refreshBlockedState()
     }
 
     override fun onResume() {
@@ -111,12 +160,31 @@ class ChatActivity : Activity() {
         handler.removeCallbacks(pollRunnable)
     }
 
+    private fun refreshBlockedState() {
+        val peerId = conv.members.firstOrNull { it.id != app.api.myUserId }?.id ?: return
+        if (conv.kind == "group") return
+        Threads.runIo {
+            val blocked = try {
+                peerId in app.api.myBlockedIds()
+            } catch (e: Exception) {
+                false
+            }
+            Threads.runUi {
+                if (!isFinishing && blocked != iBlockedPeer) {
+                    iBlockedPeer = blocked
+                    updateSessionUi(currentState, lastNotice)
+                }
+            }
+        }
+    }
+
     private fun enrichConversationFromServer() {
         Threads.runIo {
             try {
                 val fresh = app.api.listConversations().firstOrNull { it.id == conv.id }
                 if (fresh != null) {
                     Threads.runUi {
+                        if (isFinishing) return@runUi
                         conv = fresh
                         adapter.memberNames = fresh.members.associate { it.id to it.displayName }
                         val peer = fresh.members.firstOrNull { it.id != app.api.myUserId }
@@ -143,15 +211,17 @@ class ChatActivity : Activity() {
         syncing = true
         app.repo.syncChat(conv, markReadWanted = true) { result ->
             syncing = false
-            result.onSuccess { sync ->
-                applyMessages(sync.messages, forceScroll = false)
-                adapter.peerLastReadAt = sync.peer?.lastReadAt ?: adapter.peerLastReadAt
-                updateSessionUi(sync.state, sync.notice)
-                val grew = sync.messages.size != lastMessageCount
-                pollIntervalMs = if (grew) 2_500L else minOf(pollIntervalMs * 3 / 2, 10_000L)
-            }.onFailure {
-                tvChatStatus.text = "در انتظار اتصال…"
-                pollIntervalMs = 6_000L
+            if (!isFinishing) {
+                result.onSuccess { sync ->
+                    applyPage(PageResult(sync.messages, sync.hasMore), forceScroll = false)
+                    adapter.peerLastReadAt = sync.peer?.lastReadAt ?: adapter.peerLastReadAt
+                    updateSessionUi(sync.state, sync.notice)
+                    val grew = sync.messages.size != lastMessageCount
+                    pollIntervalMs = if (grew) 2_500L else minOf(pollIntervalMs * 3 / 2, 10_000L)
+                }.onFailure {
+                    tvChatStatus.text = "در انتظار اتصال…"
+                    pollIntervalMs = 6_000L
+                }
             }
             scheduleNextPoll()
         }
@@ -163,6 +233,12 @@ class ChatActivity : Activity() {
         handler.postDelayed(pollRunnable, pollIntervalMs)
     }
 
+    private fun applyPage(page: PageResult, forceScroll: Boolean) {
+        hasMoreOlder = page.hasMore
+        btnLoadOlder.visibility = if (hasMoreOlder) View.VISIBLE else View.GONE
+        applyMessages(page.messages, forceScroll)
+    }
+
     private fun applyMessages(messages: List<UiMessage>, forceScroll: Boolean) {
         val wasAtBottom = lvMessages.lastVisiblePosition >= adapter.count - 2
         adapter.submit(messages)
@@ -172,23 +248,53 @@ class ChatActivity : Activity() {
         }
     }
 
+    private fun loadOlder() {
+        if (loadingOlder || adapter.count == 0) return
+        loadingOlder = true
+        val first = adapter.getItem(0)
+        val firstVisible = lvMessages.firstVisiblePosition
+        app.repo.olderMessages(conv.id, first.createdAt, first.localId) { result ->
+            loadingOlder = false
+            if (isFinishing) return@olderMessages
+            result.onSuccess { page ->
+                val before = adapter.count
+                adapter.prepend(page.messages)
+                val added = adapter.count - before
+                hasMoreOlder = page.hasMore
+                btnLoadOlder.visibility = if (hasMoreOlder) View.VISIBLE else View.GONE
+                if (added > 0) lvMessages.post { lvMessages.setSelection(added + firstVisible) }
+            }
+        }
+    }
+
     private fun updateSessionUi(state: SessionUiState, notice: String?) {
         currentState = state
-        val canSend = state == SessionUiState.READY || state == SessionUiState.GROUP_PLAIN
-        etMessage.isEnabled = canSend
-        btnSend.isEnabled = canSend
+        lastNotice = notice
+        // The composer always works now: without a secret session this is a
+        // normal chat; with one, messages are end-to-end encrypted.
+        etMessage.isEnabled = true
+        btnSend.isEnabled = true
+        btnTtl.visibility = if (state == SessionUiState.READY) View.VISIBLE else View.GONE
+        etMessage.hint = if (state == SessionUiState.READY) "پیام امن بنویسید… 🔒" else "پیام بنویسید…"
 
         tvChatStatus.text = when (state) {
-            SessionUiState.READY -> "🔒 رمزنگاری سرتاسری فعال"
+            SessionUiState.READY -> "🔒 چت امن فعال — رمزنگاری سرتاسری"
             SessionUiState.GROUP_PLAIN -> "گروه — بدون رمزنگاری سرتاسری"
-            SessionUiState.WAITING_PEER -> "در انتظار پذیرش چت امن…"
-            SessionUiState.NO_SESSION -> "چت امن برقرار نیست"
-            SessionUiState.PEER_NO_KEY -> "مخاطب اپ مموت را فعال نکرده است"
+            SessionUiState.WAITING_PEER -> "در انتظار پذیرش چت امن… (فعلاً عادی)"
+            SessionUiState.NO_SESSION -> "گفتگوی عادی"
+            SessionUiState.PEER_NO_KEY -> "گفتگوی عادی — مخاطب اپ را فعال نکرده است"
             SessionUiState.PEER_KEY_CHANGED -> "⚠️ کلید مخاطب عوض شده است"
         }
 
         btnBannerAction.setOnClickListener(null)
         when {
+            iBlockedPeer -> {
+                layoutBanner.visibility = View.VISIBLE
+                tvBannerText.text = "این کاربر را مسدود کرده‌اید؛ پیام‌های او به شما نمی‌رسد."
+                btnBannerAction.visibility = View.VISIBLE
+                btnBannerAction.text = "رفع مسدودیت"
+                btnBannerAction.setOnClickListener { setBlocked(false) }
+            }
             notice != null -> {
                 layoutBanner.visibility = View.VISIBLE
                 tvBannerText.text = notice
@@ -196,24 +302,24 @@ class ChatActivity : Activity() {
             }
             state == SessionUiState.NO_SESSION -> {
                 layoutBanner.visibility = View.VISIBLE
-                tvBannerText.text = "برای این گفتگو هنوز نشست امن ساخته نشده است."
+                tvBannerText.text = "این گفتگوی عادی است. برای اینکه فقط خودتان دو نفر پیام‌ها را بخوانید، چت امن را فعال کنید."
                 btnBannerAction.visibility = View.VISIBLE
-                btnBannerAction.text = "شروع چت امن"
+                btnBannerAction.text = "🔐 فعال‌سازی چت امن"
                 btnBannerAction.setOnClickListener { startSecret() }
             }
             state == SessionUiState.WAITING_PEER -> {
                 layoutBanner.visibility = View.VISIBLE
-                tvBannerText.text = "درخواست چت امن ارسال شد؛ وقتی مخاطب اپ را باز کند، نشست خودکار برقرار می‌شود."
+                tvBannerText.text = "درخواست چت امن ارسال شد؛ وقتی مخاطب اپ را باز کند فعال می‌شود. پیام‌های فعلی عادی ارسال می‌شوند."
                 btnBannerAction.visibility = View.GONE
             }
             state == SessionUiState.PEER_NO_KEY -> {
                 layoutBanner.visibility = View.VISIBLE
-                tvBannerText.text = "این مخاطب هنوز اپ اندروید مموت را نصب و فعال نکرده است؛ چت امن ممکن نیست."
+                tvBannerText.text = "این مخاطب هنوز اپ اندروید مموت را نصب و فعال نکرده است؛ چت امن ممکن نیست، اما چت عادی برقرار است."
                 btnBannerAction.visibility = View.GONE
             }
             state == SessionUiState.PEER_KEY_CHANGED -> {
                 layoutBanner.visibility = View.VISIBLE
-                tvBannerText.text = "کلید امنیتی مخاطب عوض شده است (مثلاً نصب دوباره). فقط اگر مطمئن هستید بازنشانی کنید."
+                tvBannerText.text = "کلید امنیتی مخاطب عوض شده است (مثلاً نصب دوباره). فقط اگر مطمئن هستید بازنشانی کنید؛ تا آن موقع پیام‌ها عادی ارسال می‌شوند."
                 btnBannerAction.visibility = View.VISIBLE
                 btnBannerAction.text = "بازنشانی نشست امن"
                 btnBannerAction.setOnClickListener { confirmResetSecret() }
@@ -227,15 +333,15 @@ class ChatActivity : Activity() {
         if (text.isEmpty()) return
         etMessage.text.clear()
         pollIntervalMs = 2_500L
-        app.repo.sendText(conv, text) { result ->
+        val ttl = if (currentState == SessionUiState.READY) ttlChoiceSeconds else 0
+        app.repo.sendText(conv, text, ttl) { result ->
             result.onSuccess { messages ->
                 applyMessages(messages, forceScroll = true)
             }.onFailure { e ->
                 etMessage.setText(text)
                 Toast.makeText(this, e.message ?: "ارسال ناموفق بود", Toast.LENGTH_LONG).show()
-                // Reload local state so the failed bubble (with retry) is visible.
                 app.repo.localMessages(conv.id) { local ->
-                    local.onSuccess { applyMessages(it, forceScroll = true) }
+                    local.onSuccess { applyPage(it, forceScroll = true) }
                 }
             }
         }
@@ -246,12 +352,30 @@ class ChatActivity : Activity() {
         app.repo.startSecretChat(conv) { result ->
             btnBannerAction.isEnabled = true
             result.onSuccess { sync ->
-                applyMessages(sync.messages, forceScroll = false)
+                applyPage(PageResult(sync.messages, sync.hasMore), forceScroll = false)
                 updateSessionUi(sync.state, sync.notice)
             }.onFailure { e ->
                 Toast.makeText(this, e.message ?: "برقراری چت امن ناموفق بود", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun confirmEndSecret() {
+        AlertDialog.Builder(this)
+            .setTitle("پایان چت امن؟")
+            .setMessage("از این به بعد پیام‌های تازه این گفتگو عادی (بدون رمزنگاری سرتاسری) ارسال می‌شوند و مخاطب هم مطلع می‌شود. پیام‌های امن قبلی روی همین گوشی خوانا می‌مانند.")
+            .setNegativeButton("لغو", null)
+            .setPositiveButton("پایان چت امن") { _, _ ->
+                app.repo.endSecretChat(conv) { result ->
+                    result.onSuccess { sync ->
+                        applyPage(PageResult(sync.messages, sync.hasMore), forceScroll = false)
+                        updateSessionUi(sync.state, sync.notice)
+                    }.onFailure { e ->
+                        Toast.makeText(this, e.message ?: "پایان چت امن ناموفق بود", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun confirmResetSecret() {
@@ -262,7 +386,7 @@ class ChatActivity : Activity() {
             .setPositiveButton("بازنشانی") { _, _ ->
                 app.repo.resetSecretChat(conv) { result ->
                     result.onSuccess { sync ->
-                        applyMessages(sync.messages, forceScroll = false)
+                        applyPage(PageResult(sync.messages, sync.hasMore), forceScroll = false)
                         updateSessionUi(sync.state, sync.notice)
                         Toast.makeText(this, "درخواست نشست امن تازه ارسال شد.", Toast.LENGTH_SHORT).show()
                     }.onFailure { e ->
@@ -274,41 +398,291 @@ class ChatActivity : Activity() {
     }
 
     private fun showSecurityDialog() {
-        if (conv.kind == "group") {
-            AlertDialog.Builder(this)
-                .setTitle("امنیت این گروه")
-                .setMessage("گروه‌ها مثل تلگرام رمزنگاری سرتاسری ندارند؛ پیام گروه روی سرور با TLS و کنترل دسترسی محافظت می‌شود، اما سرور می‌تواند آن را بخواند. برای محرمانگی کامل از چت خصوصی امن استفاده کنید.")
-                .setPositiveButton("بستن", null)
-                .show()
-            return
-        }
         val code = try {
             app.repo.safetyCode(conv)
         } catch (e: Exception) {
             null
         }
         val message = if (code != null) {
-            "این گفتگو رمزنگاری سرتاسری دارد؛ کلیدها فقط روی گوشی شما و مخاطب است.\n\n" +
+            "این گفتگو در حالت امن است؛ پیام‌های تازه با رمزنگاری سرتاسری ارسال می‌شوند و کلیدها فقط روی گوشی شما و مخاطب‌اند.\n\n" +
                 "کد امنیتی این نشست:\n$code\n\n" +
-                "اگر این کد در گوشی هر دو نفر یکی باشد، هیچ واسطه‌ای بین شما نیست. (مثل اثر انگشت کلید در چت مخفی تلگرام)"
+                "اگر این کد روی گوشی هر دو نفر یکی باشد، هیچ واسطه‌ای بین شما نیست؛ آن را با صدای بلند یا رو‌در‌رو مقایسه کنید."
         } else {
-            "برای این گفتگو هنوز نشست امن فعالی وجود ندارد، پس کد امنیتی هم نیست. از دکمه «شروع چت امن» استفاده کنید."
+            "این گفتگو فعلاً عادی است و رمزنگاری سرتاسری ندارد (سرور از نظر فنی می‌تواند پیام‌های عادی را بخواند).\n\n" +
+                "با فعال‌سازی چت امن، هر دو گوشی یک تبادل کلید امضاشده انجام می‌دهند و از آن به بعد پیام‌ها فقط روی دو گوشی خواناست — درست مثل چت مخفی تلگرام."
         }
         val builder = AlertDialog.Builder(this)
             .setTitle("امنیت گفتگو 🔒")
             .setMessage(message)
             .setPositiveButton("بستن", null)
-        if (currentState == SessionUiState.READY || currentState == SessionUiState.PEER_KEY_CHANGED) {
-            builder.setNegativeButton("بازنشانی نشست امن") { _, _ -> confirmResetSecret() }
+        when (currentState) {
+            SessionUiState.READY -> {
+                builder.setNeutralButton("بازنشانی نشست امن") { _, _ -> confirmResetSecret() }
+                builder.setNegativeButton("پایان چت امن") { _, _ -> confirmEndSecret() }
+            }
+            SessionUiState.PEER_KEY_CHANGED -> {
+                builder.setNegativeButton("بازنشانی نشست امن") { _, _ -> confirmResetSecret() }
+            }
+            SessionUiState.NO_SESSION -> {
+                builder.setNegativeButton("🔐 فعال‌سازی چت امن") { _, _ -> startSecret() }
+            }
+            else -> Unit
         }
         builder.show()
     }
 
+    private fun showPeerProfile() {
+        val peer = conv.members.firstOrNull { it.id != app.api.myUserId } ?: return
+        Threads.runIo {
+            val profile = try {
+                app.api.fetchProfile(peer.id)
+            } catch (e: Exception) {
+                null
+            }
+            val blocked = try {
+                peer.id in app.api.myBlockedIds()
+            } catch (e: Exception) {
+                iBlockedPeer
+            }
+            Threads.runUi {
+                if (isFinishing) return@runUi
+                iBlockedPeer = blocked
+                val name = profile?.displayName ?: peer.displayName
+                val username = profile?.username ?: peer.username
+                val hasKey = (profile?.e2eIdentityKey ?: peer.e2eIdentityKey) != null
+                val text = buildString {
+                    append("$name\n@$username\n\n")
+                    append(if (hasKey) "🔒 این کاربر از چت امن مموت پشتیبانی می‌کند.\n" else "این کاربر هنوز اپ اندروید مموت را فعال نکرده است.\n")
+                    append(if (blocked) "\n🚫 شما این کاربر را مسدود کرده‌اید." else "")
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("پروفایل مخاطب")
+                    .setMessage(text)
+                    .setPositiveButton("بستن", null)
+                    .setNeutralButton("امنیت گفتگو 🔒") { _, _ -> showSecurityDialog() }
+                    .setNegativeButton(if (blocked) "رفع مسدودیت" else "مسدود کردن") { _, _ ->
+                        setBlocked(!blocked)
+                    }
+                    .show()
+            }
+        }
+    }
+
+    private fun setBlocked(block: Boolean) {
+        val peer = conv.members.firstOrNull { it.id != app.api.myUserId } ?: return
+        Threads.runIo {
+            try {
+                if (block) app.api.blockUser(peer.id) else app.api.unblockUser(peer.id)
+                Threads.runUi {
+                    if (!isFinishing) {
+                        iBlockedPeer = block
+                        updateSessionUi(currentState, lastNotice)
+                        Toast.makeText(this, if (block) "کاربر مسدود شد." else "مسدودیت رفع شد.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Threads.runUi {
+                    if (!isFinishing) {
+                        Toast.makeText(this, e.message ?: "خطا رخ داد", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showGroupInfo() {
+        val names = conv.members.joinToString("\n") { m ->
+            "• ${m.displayName} (@${m.username})" + if (m.id == app.api.myUserId) " — شما" else ""
+        }
+        val text = "گروه‌ها مثل تلگرام رمزنگاری سرتاسری ندارند؛ پیام گروه با TLS و کنترل دسترسی محافظت می‌شود اما سرور می‌تواند آن را بخواند.\n\nاعضا (${UiUtil.faNum(conv.members.size)}):\n$names"
+        AlertDialog.Builder(this)
+            .setTitle(tvChatTitle.text.toString())
+            .setMessage(text)
+            .setPositiveButton("بستن", null)
+            .setNeutralButton("افزودن عضو") { _, _ -> promptAddMember() }
+            .setNegativeButton("ترک گروه") { _, _ -> confirmLeaveGroup() }
+            .show()
+    }
+
+    private fun promptAddMember() {
+        promptText("افزودن عضو", "", "نام کاربری یا بخشی از نام") { query ->
+            if (query.trim().length < 2) {
+                Toast.makeText(this, "عبارت جستجو خیلی کوتاه است.", Toast.LENGTH_SHORT).show()
+                return@promptText
+            }
+            Threads.runIo {
+                try {
+                    val currentIds = conv.members.map { it.id }.toSet()
+                    val results = app.api.searchUsers(query.trim()).filter { it.id !in currentIds }
+                    Threads.runUi {
+                        if (isFinishing) return@runUi
+                        if (results.isEmpty()) {
+                            Toast.makeText(this, "کاربر تازه‌ای پیدا نشد.", Toast.LENGTH_SHORT).show()
+                            return@runUi
+                        }
+                        val labels = results.map { "${it.displayName} (@${it.username})" }.toTypedArray()
+                        AlertDialog.Builder(this)
+                            .setTitle("انتخاب عضو")
+                            .setItems(labels) { _, which -> addMember(results[which].id, results[which].displayName) }
+                            .setNegativeButton("لغو", null)
+                            .show()
+                    }
+                } catch (e: Exception) {
+                    Threads.runUi {
+                        if (!isFinishing) Toast.makeText(this, e.message ?: "خطا در جستجو", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun addMember(userId: String, displayName: String) {
+        Threads.runIo {
+            try {
+                app.api.addGroupMembers(conv.id, listOf(userId))
+                Threads.runUi {
+                    if (!isFinishing) {
+                        Toast.makeText(this, "«$displayName» به گروه اضافه شد.", Toast.LENGTH_SHORT).show()
+                        enrichConversationFromServer()
+                    }
+                }
+            } catch (e: Exception) {
+                Threads.runUi {
+                    if (!isFinishing) Toast.makeText(this, e.message ?: "افزودن عضو ناموفق بود", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun confirmLeaveGroup() {
+        AlertDialog.Builder(this)
+            .setTitle("ترک گروه؟")
+            .setMessage("دیگر پیام‌های این گروه را دریافت نمی‌کنید.")
+            .setNegativeButton("لغو", null)
+            .setPositiveButton("ترک گروه") { _, _ ->
+                Threads.runIo {
+                    try {
+                        app.api.leaveConversation(conv.id)
+                        Threads.runUi {
+                            Toast.makeText(this, "گروه را ترک کردید.", Toast.LENGTH_SHORT).show()
+                            finish()
+                        }
+                    } catch (e: Exception) {
+                        Threads.runUi {
+                            if (!isFinishing) Toast.makeText(this, e.message ?: "ترک گروه ناموفق بود", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun showTtlPicker() {
+        val options = listOf(
+            0 to "خاموش",
+            10 to "۱۰ ثانیه بعد از خواندن",
+            60 to "۱ دقیقه بعد از خواندن",
+            3600 to "۱ ساعت بعد از خواندن",
+            86400 to "۱ روز بعد از خواندن",
+            604800 to "۱ هفته بعد از خواندن",
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        val checked = options.indexOfFirst { it.first == ttlChoiceSeconds }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("حذف خودکار پیام‌های امن ⏱")
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                ttlChoiceSeconds = options[which].first
+                app.repo.setTtlChoice(conv.id, ttlChoiceSeconds)
+                updateTtlButton()
+                dialog.dismiss()
+                Toast.makeText(
+                    this,
+                    if (ttlChoiceSeconds == 0) "حذف خودکار خاموش شد."
+                    else "پیام‌های امن تازه ${options[which].second} پاک می‌شوند.",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNegativeButton("لغو", null)
+            .show()
+    }
+
+    private fun updateTtlButton() {
+        btnTtl.setTextColor(
+            getColor(if (ttlChoiceSeconds > 0) R.color.brand else R.color.text2),
+        )
+    }
+
+    private fun toggleSearch(show: Boolean) {
+        layoutSearch.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) {
+            etChatSearch.requestFocus()
+        } else {
+            etChatSearch.text.clear()
+            searchMatchIds = emptyList()
+            searchIndex = -1
+        }
+    }
+
+    private fun runSearch(query: String, seq: Int) {
+        app.repo.searchMessages(conv.id, query) { result ->
+            if (seq != searchSeq || isFinishing) return@searchMessages
+            result.onSuccess { matches ->
+                searchMatchIds = matches.map { it.localId }
+                searchIndex = -1
+                if (matches.isEmpty()) {
+                    Toast.makeText(this, "چیزی پیدا نشد.", Toast.LENGTH_SHORT).show()
+                } else {
+                    ensureAllLoadedForSearch(matches.size) { jumpToMatch(+1) }
+                }
+            }
+        }
+    }
+
+    private fun ensureAllLoadedForSearch(matchCount: Int, then: () -> Unit) {
+        if (!hasMoreOlder) {
+            then()
+            return
+        }
+        Toast.makeText(this, "${UiUtil.faNum(matchCount)} نتیجه — در حال بارگذاری تاریخچه…", Toast.LENGTH_SHORT).show()
+        app.repo.allLocalMessages(conv.id) { result ->
+            if (isFinishing) return@allLocalMessages
+            result.onSuccess { all ->
+                adapter.submit(all)
+                hasMoreOlder = false
+                btnLoadOlder.visibility = View.GONE
+                then()
+            }
+        }
+    }
+
+    private fun jumpToMatch(direction: Int) {
+        if (searchMatchIds.isEmpty()) return
+        searchIndex = ((searchIndex + direction) % searchMatchIds.size + searchMatchIds.size) % searchMatchIds.size
+        val targetId = searchMatchIds[searchIndex]
+        val items = adapter.snapshot()
+        val pos = items.indexOfFirst { it.localId == targetId }
+        if (pos >= 0) {
+            lvMessages.post { lvMessages.setSelection(pos) }
+            Toast.makeText(
+                this,
+                "نتیجه ${UiUtil.faNum(searchIndex + 1)} از ${UiUtil.faNum(searchMatchIds.size)}",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
     private fun showMessageActions(msg: UiMessage) {
+        if (msg.system) return
         val options = mutableListOf<String>()
         if (msg.status == "failed") options.add("تلاش دوباره")
-        if (msg.text != null && !msg.deleted) options.add("کپی متن")
-        if (msg.mine && msg.serverId != null && !msg.deleted) options.add("حذف برای همه")
+        if (msg.mine && !msg.deleted && !msg.expired && msg.serverId != null &&
+            (!msg.encrypted || currentState == SessionUiState.READY)
+        ) {
+            options.add("ویرایش")
+        }
+        if (msg.text != null && !msg.deleted && !msg.expired) options.add("کپی متن")
+        if (msg.mine && msg.serverId != null && !msg.deleted && !msg.expired) options.add("حذف برای همه")
+        if (msg.mine && msg.serverId == null) options.add("حذف از این دستگاه")
         if (options.isEmpty()) return
 
         AlertDialog.Builder(this)
@@ -325,16 +699,26 @@ class ChatActivity : Activity() {
                                 .onFailure { e ->
                                     Toast.makeText(this, e.message ?: "ارسال ناموفق بود", Toast.LENGTH_LONG).show()
                                     app.repo.localMessages(conv.id) { local ->
-                                        local.onSuccess { applyMessages(it, forceScroll = true) }
+                                        local.onSuccess { applyPage(it, forceScroll = true) }
                                     }
                                 }
                         }
                     }
-                    "حذف برای همه" -> {
+                    "ویرایش" -> {
+                        promptText("ویرایش پیام", msg.text ?: "", "متن تازه") { newText ->
+                            app.repo.editMessage(conv, msg, newText) { result ->
+                                result.onSuccess { applyMessages(it, forceScroll = false) }
+                                    .onFailure { e ->
+                                        Toast.makeText(this, e.message ?: "ویرایش ناموفق بود", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                        }
+                    }
+                    "حذف برای همه", "حذف از این دستگاه" -> {
                         app.repo.deleteMessage(msg) { result ->
                             result.onSuccess {
                                 app.repo.localMessages(conv.id) { local ->
-                                    local.onSuccess { applyMessages(it, forceScroll = false) }
+                                    local.onSuccess { applyPage(it, forceScroll = false) }
                                 }
                             }.onFailure { e ->
                                 Toast.makeText(this, e.message ?: "حذف ناموفق بود", Toast.LENGTH_LONG).show()
@@ -343,6 +727,20 @@ class ChatActivity : Activity() {
                     }
                 }
             }
+            .show()
+    }
+
+    private fun promptText(title: String, initial: String, hint: String, onOk: (String) -> Unit) {
+        val input = EditText(this).apply {
+            setText(initial)
+            this.hint = hint
+            setSelection(text?.length ?: 0)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(input)
+            .setNegativeButton("لغو", null)
+            .setPositiveButton("تأیید") { _, _ -> onOk(input.text.toString()) }
             .show()
     }
 
@@ -377,6 +775,7 @@ class ChatActivity : Activity() {
         private const val EXTRA_PEER_NAME = "peer_name"
         private const val EXTRA_PEER_USERNAME = "peer_username"
         private const val EXTRA_PEER_KEY = "peer_key"
+        private val SEARCH_TOKEN = Any()
 
         fun intentFor(context: Context, item: UiConversation): Intent {
             return Intent(context, ChatActivity::class.java).apply {
@@ -406,6 +805,14 @@ class ChatActivity : Activity() {
                 putExtra(EXTRA_PEER_NAME, peerName)
                 putExtra(EXTRA_PEER_USERNAME, peerUsername)
                 putExtra(EXTRA_PEER_KEY, peerKey)
+            }
+        }
+
+        fun intentForGroup(context: Context, conversationId: String, title: String): Intent {
+            return Intent(context, ChatActivity::class.java).apply {
+                putExtra(EXTRA_CONV_ID, conversationId)
+                putExtra(EXTRA_KIND, "group")
+                putExtra(EXTRA_TITLE, title)
             }
         }
     }

@@ -280,6 +280,84 @@ class SupabaseApi(private val secure: SecureStore) {
         authed("POST", "/rest/v1/rpc/mark_read", body, null)
     }
 
+
+    fun fetchMessagesBefore(conversationId: String, beforeIso: String, limit: Int = 100): List<MessageRow> {
+        val path = "/rest/v1/messages?select=$MESSAGE_COLUMNS" +
+            "&conversation_id=eq.${enc(conversationId)}" +
+            "&created_at=lt.${enc(beforeIso)}" +
+            "&order=created_at.desc,id.desc&limit=$limit"
+        return parseMessages(JSONArray(authed("GET", path, null, null))).asReversed()
+    }
+
+    /**
+     * Reconciliation for edits/deletes of older messages: the created_at
+     * watermark sync can never see them, so poll the edited_at/deleted_at
+     * columns with their own watermark (usually returns zero rows).
+     */
+    fun fetchEditedOrDeletedSince(conversationId: String, sinceIso: String): List<MessageRow> {
+        val path = "/rest/v1/messages?select=$MESSAGE_COLUMNS" +
+            "&conversation_id=eq.${enc(conversationId)}" +
+            "&or=(edited_at.gte.${enc(sinceIso)},deleted_at.gte.${enc(sinceIso)})" +
+            "&order=created_at.asc,id.asc&limit=100"
+        return parseMessages(JSONArray(authed("GET", path, null, null)))
+    }
+
+    fun updateMessageBody(serverId: String, newBody: String): MessageRow {
+        val body = JSONObject().put("body", newBody)
+        val arr = JSONArray(authed("PATCH", "/rest/v1/messages?id=eq.${enc(serverId)}", body, "return=representation"))
+        return parseMessage(arr.getJSONObject(0))
+    }
+
+    fun createGroup(title: String, memberIds: List<String>): String {
+        val ids = JSONArray()
+        memberIds.forEach { ids.put(it) }
+        val body = JSONObject().put("p_title", title).put("p_member_ids", ids)
+        val raw = authed("POST", "/rest/v1/rpc/create_group", body, null)
+        return raw.trim().trim('"')
+    }
+
+    fun addGroupMembers(conversationId: String, userIds: List<String>) {
+        val ids = JSONArray()
+        userIds.forEach { ids.put(it) }
+        val body = JSONObject().put("p_conversation", conversationId).put("p_user_ids", ids)
+        authed("POST", "/rest/v1/rpc/add_group_members", body, null)
+    }
+
+    fun leaveConversation(conversationId: String) {
+        val body = JSONObject().put("p_conversation", conversationId)
+        authed("POST", "/rest/v1/rpc/leave_conversation", body, null)
+    }
+
+    fun myBlockedIds(): List<String> {
+        val me = myUserId ?: return emptyList()
+        val arr = JSONArray(authed("GET", "/rest/v1/blocks?select=blocked&blocker=eq.${enc(me)}", null, null))
+        return List(arr.length()) { arr.getJSONObject(it).getString("blocked") }
+    }
+
+    fun blockUser(userId: String) {
+        val me = myUserId ?: throw ApiException("وارد نشده‌اید")
+        val body = JSONObject().put("blocker", me).put("blocked", userId)
+        try {
+            authed("POST", "/rest/v1/blocks", body, "return=minimal")
+        } catch (e: ApiException) {
+            if (e.code != "23505") throw e // already blocked
+        }
+    }
+
+    fun unblockUser(userId: String) {
+        val me = myUserId ?: return
+        authed("DELETE", "/rest/v1/blocks?blocker=eq.${enc(me)}&blocked=eq.${enc(userId)}", null, "return=minimal")
+    }
+
+    fun updatePassword(newPassword: String) {
+        val body = JSONObject().put("password", newPassword)
+        authed("PUT", "/auth/v1/user", body, null)
+    }
+
+    fun deleteMyAccount() {
+        authed("POST", "/rest/v1/rpc/delete_my_account", JSONObject(), null)
+    }
+
     fun fetchMessagesAfter(conversationId: String, afterIso: String): List<MessageRow> {
         val path = "/rest/v1/messages?select=$MESSAGE_COLUMNS" +
             "&conversation_id=eq.${enc(conversationId)}" +
@@ -354,7 +432,7 @@ class SupabaseApi(private val secure: SecureStore) {
             setRequestProperty("Authorization", "Bearer $bearer")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Accept-Encoding", "gzip")
-            setRequestProperty("X-Client-Info", "mamoot-android/0.2.1")
+            setRequestProperty("X-Client-Info", "mamoot-android/0.3.0")
             if (prefer != null) setRequestProperty("Prefer", prefer)
             if (body != null) {
                 doOutput = true
@@ -404,6 +482,12 @@ class SupabaseApi(private val secure: SecureStore) {
             "email not confirmed" in m -> "ایمیل شما هنوز تأیید نشده است."
             "duplicate key" in m && "username" in m -> "این نام کاربری قبلاً گرفته شده است."
             "password should be" in m -> "رمز عبور ضعیف است."
+            m.trim() == "blocked" || "blocked" in m -> "امکان ارسال پیام به این کاربر وجود ندارد (مسدودیت)."
+            "invalid_title" in m -> "نام گروه را وارد کنید (حداکثر ۸۰ نویسه)."
+            "invalid_member_count" in m -> "برای گروه دست‌کم یک عضو انتخاب کنید."
+            "group_full" in m -> "ظرفیت گروه تکمیل است."
+            "not_a_group" in m || "cannot_leave" in m -> "این عملیات برای این گفتگو ممکن نیست."
+            "user_not_found" in m -> "کاربر یافت نشد."
             else -> raw.ifEmpty { "خطای شبکه یا سرور" }
         }
     }

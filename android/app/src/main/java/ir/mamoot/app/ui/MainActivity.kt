@@ -25,6 +25,7 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var errorShown = false
     private var refreshing = false
+    private var pendingOpenConvId: String? = null
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -59,11 +60,20 @@ class MainActivity : Activity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         app.repo.ensureIdentityUploaded { /* publish/refresh identity key silently */ }
+        pendingOpenConvId = intent?.getStringExtra(MamootApp.EXTRA_OPEN_CONV)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingOpenConvId = intent?.getStringExtra(MamootApp.EXTRA_OPEN_CONV)
+        refresh()
     }
 
     override fun onResume() {
         super.onResume()
         if (app.api.session == null) return
+        getSystemService(android.app.NotificationManager::class.java)?.cancel(MamootApp.NOTIFICATION_ID)
         refresh()
         handler.removeCallbacks(pollRunnable)
         handler.postDelayed(pollRunnable, POLL_MS)
@@ -81,6 +91,16 @@ class MainActivity : Activity() {
             refreshing = false
             result.onSuccess { items ->
                 adapter.submit(items)
+                // Re-baseline the background notifier so it only fires for
+                // messages that arrive after this visit.
+                getSharedPreferences("mamoot_bg", MODE_PRIVATE).edit()
+                    .putInt("last_unread", items.sumOf { it.conversation.unreadCount }).apply()
+                pendingOpenConvId?.let { targetId ->
+                    items.firstOrNull { it.conversation.id == targetId }?.let { item ->
+                        pendingOpenConvId = null
+                        startActivity(ChatActivity.intentFor(this, item))
+                    }
+                }
                 tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
                 lvConversations.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
                 errorShown = false

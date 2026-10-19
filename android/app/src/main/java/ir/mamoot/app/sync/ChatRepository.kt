@@ -14,6 +14,7 @@ import ir.mamoot.app.net.SupabaseApi
 import ir.mamoot.app.storage.LocalDb
 import ir.mamoot.app.storage.LocalMessage
 import ir.mamoot.app.storage.SecureStore
+import ir.mamoot.app.util.UiUtil
 import java.security.PublicKey
 import java.time.Instant
 import java.util.UUID
@@ -30,6 +31,11 @@ data class UiMessage(
     val status: String,
     val deleted: Boolean,
     val encrypted: Boolean,
+    val ttlSeconds: Int = 0,
+    val expiresAtMs: Long? = null,
+    val expired: Boolean = false,
+    val edited: Boolean = false,
+    val system: Boolean = false,
 )
 
 data class UiConversation(
@@ -44,8 +50,24 @@ data class SyncResult(
     val state: SessionUiState,
     val peer: MemberInfo?,
     val notice: String?,
+    val hasMore: Boolean = false,
 )
 
+data class PageResult(
+    val messages: List<UiMessage>,
+    val hasMore: Boolean,
+)
+
+/**
+ * Sync + secret-chat engine.
+ *
+ * DM model (Telegram-like choice): every DM is a normal chat by default.
+ * Activating the secret layer runs the signed ECDH exchange; from then on
+ * new messages are end-to-end encrypted until either side ends it (control
+ * envelope), after which the conversation falls back to plain messages.
+ * History can therefore mix plain and 🔒 messages; each encrypted bubble
+ * is marked in the UI.
+ */
 class ChatRepository(
     private val api: SupabaseApi,
     private val db: LocalDb,
@@ -54,6 +76,7 @@ class ChatRepository(
 ) {
     private val sessionLock = Any()
     private val sessionCache = mutableMapOf<String, SecretSession>()
+    private val profileCache = mutableMapOf<String, Pair<Profile, Long>>()
 
     private val myId: String
         get() = api.myUserId ?: throw ApiException("وارد نشده‌اید")
@@ -81,8 +104,45 @@ class ChatRepository(
         }
     }
 
-    fun localMessages(conversationId: String, callback: (Result<List<UiMessage>>) -> Unit) {
+    fun localMessages(conversationId: String, callback: (Result<PageResult>) -> Unit) {
+        ioCall(callback) {
+            purgeExpired()
+            latestPage(conversationId)
+        }
+    }
+
+    fun olderMessages(
+        conversationId: String,
+        beforeCreatedAt: String,
+        beforeLocalId: Long,
+        callback: (Result<PageResult>) -> Unit,
+    ) {
+        ioCall(callback) {
+            val rows = db.listVisibleBefore(conversationId, beforeCreatedAt, beforeLocalId, PAGE_SIZE)
+            val hasMore = if (rows.isEmpty()) {
+                false
+            } else {
+                db.listVisibleBefore(conversationId, rows.first().createdAt, rows.first().localId, 1).isNotEmpty()
+            }
+            PageResult(rows.map(::toUi), hasMore)
+        }
+    }
+
+    fun allLocalMessages(conversationId: String, callback: (Result<List<UiMessage>>) -> Unit) {
         ioCall(callback) { db.listVisible(conversationId).map(::toUi) }
+    }
+
+    fun searchMessages(conversationId: String, query: String, callback: (Result<List<UiMessage>>) -> Unit) {
+        ioCall(callback) {
+            val q = query.trim()
+            if (q.isEmpty()) {
+                emptyList()
+            } else {
+                db.listVisible(conversationId)
+                    .filter { !it.deleted && it.plainText?.contains(q, ignoreCase = true) == true }
+                    .map(::toUi)
+            }
+        }
     }
 
     fun syncChat(conv: Conversation, markReadWanted: Boolean, callback: (Result<SyncResult>) -> Unit) {
@@ -92,7 +152,7 @@ class ChatRepository(
     fun startSecretChat(conv: Conversation, callback: (Result<SyncResult>) -> Unit) {
         ioCall(callback) {
             val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
-            val peerProfile = api.fetchProfile(peer.id)
+            val peerProfile = peerProfileCached(peer.id, force = true)
             val peerKeyB64 = peerProfile?.e2eIdentityKey ?: peer.e2eIdentityKey
             val blocked = evaluatePeerKey(peer.id, peerKeyB64)
             if (blocked == SessionUiState.PEER_NO_KEY) {
@@ -107,7 +167,34 @@ class ChatRepository(
                 saveSession(session)
                 env
             }
-            queueKx(conv.id, envelope, UUID.randomUUID().toString())
+            queueHiddenEnvelope(conv.id, envelope, UUID.randomUUID().toString())
+            syncInternal(conv, false)
+        }
+    }
+
+    fun endSecretChat(conv: Conversation, callback: (Result<SyncResult>) -> Unit) {
+        ioCall(callback) {
+            val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
+            val session = loadSession(conv.id, peer.id)
+            val clientId = UUID.randomUUID().toString()
+            val endEnvelope = synchronized(sessionLock) {
+                if (session.hasSession()) {
+                    val env = session.encryptControlEnd()
+                    saveSession(session)
+                    env
+                } else {
+                    null
+                }
+            }
+            if (endEnvelope != null) queueHiddenEnvelope(conv.id, endEnvelope, clientId)
+            synchronized(sessionLock) {
+                session.reset()
+                saveSession(session)
+            }
+            insertSystemNotice(
+                conv.id, "sys:end:mine:$clientId",
+                "🔓 شما چت امن را پایان دادید؛ پیام‌های تازه عادی ارسال می‌شوند.",
+            )
             syncInternal(conv, false)
         }
     }
@@ -120,7 +207,7 @@ class ChatRepository(
                 secure.removeSecret(sessionKey(conv.id))
             }
             identity.clearPeerPin(peer.id)
-            val peerProfile = api.fetchProfile(peer.id)
+            val peerProfile = peerProfileCached(peer.id, force = true)
             val peerKeyB64 = peerProfile?.e2eIdentityKey ?: peer.e2eIdentityKey
             if (peerKeyB64 != null) identity.pinPeer(peer.id, peerKeyB64)
             val session = loadSession(conv.id, peer.id)
@@ -130,56 +217,83 @@ class ChatRepository(
                     saveSession(session)
                     env
                 }
-                queueKx(conv.id, envelope, UUID.randomUUID().toString())
+                queueHiddenEnvelope(conv.id, envelope, UUID.randomUUID().toString())
             }
             syncInternal(conv, false)
         }
     }
 
-    fun sendText(conv: Conversation, rawText: String, callback: (Result<List<UiMessage>>) -> Unit) {
+    fun sendText(conv: Conversation, rawText: String, ttlSeconds: Int, callback: (Result<List<UiMessage>>) -> Unit) {
         ioCall(callback) {
             val text = rawText.trim()
             if (text.isEmpty()) throw ApiException("پیام خالی است")
             if (conv.kind == "group") {
+                if (text.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است (حداکثر $MAX_PLAIN_CHARS نویسه).")
                 sendPlain(conv.id, text)
             } else {
                 val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
-                if (text.length > SecretSession.MAX_PLAINTEXT_CHARS) {
-                    throw ApiException("پیام بیش از حد طولانی است (حداکثر ${SecretSession.MAX_PLAINTEXT_CHARS} نویسه در چت امن).")
-                }
                 val session = loadSession(conv.id, peer.id)
-                var rekeyEnvelope: String? = null
-                val envelope = synchronized(sessionLock) {
-                    if (!session.hasSession()) throw ApiException("چت امن هنوز برقرار نشده است.")
-                    if (session.needsRekey(System.currentTimeMillis())) {
-                        rekeyEnvelope = session.startExchange(identity.privateKey(), System.currentTimeMillis())
+                val secretActive = synchronized(sessionLock) { session.hasSession() }
+                if (!secretActive) {
+                    // Normal (non-secret) DM message.
+                    if (text.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است (حداکثر $MAX_PLAIN_CHARS نویسه).")
+                    sendPlain(conv.id, text)
+                } else {
+                    if (text.length > SecretSession.MAX_PLAINTEXT_CHARS) {
+                        throw ApiException("پیام بیش از حد طولانی است (حداکثر ${SecretSession.MAX_PLAINTEXT_CHARS} نویسه در چت امن).")
                     }
-                    val env = session.encrypt(text)
+                    var rekeyEnvelope: String? = null
+                    val envelope = synchronized(sessionLock) {
+                        if (session.needsRekey(System.currentTimeMillis())) {
+                            rekeyEnvelope = session.startExchange(identity.privateKey(), System.currentTimeMillis())
+                        }
+                        val env = session.encrypt(text, ttlSeconds)
+                        saveSession(session)
+                        env
+                    }
+                    rekeyEnvelope?.let { queueHiddenEnvelope(conv.id, it, UUID.randomUUID().toString()) }
+                    val clientId = UUID.randomUUID().toString()
+                    val localId = db.insert(
+                        serverId = null, clientId = clientId, conversationId = conv.id,
+                        senderId = myId, kind = "e2ee", envelopeBody = envelope,
+                        plainText = text, createdAt = Instant.now().toString(),
+                        status = LocalDb.STATUS_SENDING, deleted = false,
+                        ttlSeconds = ttlSeconds,
+                    )
+                    postOrMarkFailed(conv.id, envelope, "e2ee", clientId, localId)
+                }
+            }
+            db.listVisibleLatest(conv.id, PAGE_SIZE).map(::toUi)
+        }
+    }
+
+    fun editMessage(conv: Conversation, msg: UiMessage, newTextRaw: String, callback: (Result<List<UiMessage>>) -> Unit) {
+        ioCall(callback) {
+            val newText = newTextRaw.trim()
+            if (newText.isEmpty()) throw ApiException("متن پیام خالی است")
+            val serverId = msg.serverId ?: throw ApiException("پیام هنوز ارسال نشده است")
+            if (msg.encrypted) {
+                if (newText.length > SecretSession.MAX_PLAINTEXT_CHARS) {
+                    throw ApiException("پیام بیش از حد طولانی است.")
+                }
+                val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
+                val session = loadSession(conv.id, peer.id)
+                val envelope = synchronized(sessionLock) {
+                    if (!session.hasSession()) throw ApiException("نشست امن فعال نیست؛ ویرایش پیام امن ممکن نیست.")
+                    val env = session.encryptRevise(serverId, newText)
                     saveSession(session)
                     env
                 }
-                rekeyEnvelope?.let { queueKx(conv.id, it, UUID.randomUUID().toString()) }
-                val clientId = UUID.randomUUID().toString()
-                val localId = db.insert(
-                    serverId = null, clientId = clientId, conversationId = conv.id,
-                    senderId = myId, kind = "e2ee", envelopeBody = envelope,
-                    plainText = text, createdAt = Instant.now().toString(),
-                    status = LocalDb.STATUS_SENDING, deleted = false,
-                )
-                try {
-                    val row = api.insertMessage(conv.id, myId, envelope, "e2ee", clientId)
-                    db.markSentByClientId(clientId, row.id, row.createdAt)
-                } catch (e: Exception) {
-                    if (e is ApiException && e.code == "23505") {
-                        // Idempotent duplicate: an earlier retry already landed.
-                        db.setStatusByLocalId(localId, LocalDb.STATUS_SENT)
-                    } else {
-                        db.setStatusByLocalId(localId, LocalDb.STATUS_FAILED)
-                        throw e
-                    }
+                if (!queueHiddenEnvelope(conv.id, envelope, UUID.randomUUID().toString())) {
+                    throw ApiException("ارسال ویرایش ناموفق بود؛ اتصال را بررسی کنید.")
                 }
+                db.applyReviseByServerId(serverId, newText)
+            } else {
+                if (newText.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است.")
+                api.updateMessageBody(serverId, newText)
+                db.updateTextByServerId(serverId, newText)
             }
-            db.listVisible(conv.id).map(::toUi)
+            db.listVisibleLatest(conv.id, PAGE_SIZE).map(::toUi)
         }
     }
 
@@ -188,26 +302,20 @@ class ChatRepository(
             val local = db.getByLocalId(localId) ?: throw ApiException("پیام یافت نشد")
             val body = local.envelopeBody ?: throw ApiException("متن پیام در دسترس نیست")
             db.setStatusByLocalId(localId, LocalDb.STATUS_SENDING)
-            try {
-                val row = api.insertMessage(local.conversationId, myId, body, local.kind, local.clientId)
-                db.markSentByClientId(local.clientId, row.id, row.createdAt)
-            } catch (e: Exception) {
-                if (e is ApiException && e.code == "23505") {
-                    db.setStatusByLocalId(localId, LocalDb.STATUS_SENT)
-                } else {
-                    db.setStatusByLocalId(localId, LocalDb.STATUS_FAILED)
-                    throw e
-                }
-            }
-            db.listVisible(local.conversationId).map(::toUi)
+            postOrMarkFailed(local.conversationId, body, local.kind, local.clientId, localId)
+            db.listVisibleLatest(local.conversationId, PAGE_SIZE).map(::toUi)
         }
     }
 
-    fun deleteMessage(local: UiMessage, callback: (Result<Unit>) -> Unit) {
+    fun deleteMessage(msg: UiMessage, callback: (Result<Unit>) -> Unit) {
         ioCall(callback) {
-            val serverId = local.serverId ?: throw ApiException("پیام هنوز ارسال نشده است")
-            api.deleteMessage(serverId)
-            db.markDeletedByServerId(serverId)
+            val serverId = msg.serverId
+            if (serverId == null) {
+                db.deleteByLocalId(msg.localId) // never reached the server
+            } else {
+                api.deleteMessage(serverId)
+                db.markDeletedByServerId(serverId)
+            }
             Unit
         }
     }
@@ -220,19 +328,24 @@ class ChatRepository(
         return Crypto.safetyCode(identity.publicKey().encoded, Crypto.unb64(peerKeyB64), fingerprint)
     }
 
+    fun getTtlChoice(conversationId: String): Int =
+        secure.getSecret("ttl:$conversationId")?.toIntOrNull() ?: 0
+
+    fun setTtlChoice(conversationId: String, ttlSeconds: Int) {
+        secure.putSecret("ttl:$conversationId", ttlSeconds.toString())
+    }
+
     fun wipeLocal() {
         synchronized(sessionLock) { sessionCache.clear() }
+        profileCache.clear()
         db.deleteAll()
         identity.wipe()
         secure.clearAll()
     }
 
-    fun totalUnread(callback: (Result<Int>) -> Unit) {
-        ioCall(callback) { api.listConversations().sumOf { it.unreadCount } }
-    }
-
     // ------------------------------------------------------------ sync engine
     private fun syncInternal(conv: Conversation, markReadWanted: Boolean): SyncResult {
+        purgeExpired()
         val isGroup = conv.kind == "group"
         var peer = peerOf(conv)
         var peerPublicKey: PublicKey? = null
@@ -240,11 +353,7 @@ class ChatRepository(
         var session: SecretSession? = null
 
         if (!isGroup && peer != null) {
-            val freshProfile = try {
-                api.fetchProfile(peer.id)
-            } catch (e: Exception) {
-                null
-            }
+            val freshProfile = peerProfileCached(peer.id, force = false)
             if (freshProfile != null) {
                 peer = peer.copy(
                     username = freshProfile.username,
@@ -267,24 +376,40 @@ class ChatRepository(
         flushPendingKx(conv.id)
 
         val watermark = db.lastServerCreatedAt(conv.id)
-        val fetched: List<MessageRow> = if (watermark == null) {
-            api.fetchLatestMessages(conv.id, 100)
+        var incomingNew = 0
+        if (watermark == null) {
+            var page = api.fetchLatestMessages(conv.id, PAGE_SIZE)
+            var oldest = page.firstOrNull()?.createdAt
+            for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
+            // Backfill older pages if the key exchange might sit outside the
+            // first window (otherwise the secret session could never form).
+            var rounds = 0
+            while (rounds < 5 && page.size == PAGE_SIZE && oldest != null &&
+                (session == null || !session.hasSession()) &&
+                db.listPlaceholders(conv.id).any { it.senderId != myId }
+            ) {
+                page = api.fetchMessagesBefore(conv.id, oldest, PAGE_SIZE)
+                if (page.isEmpty()) break
+                oldest = page.firstOrNull()?.createdAt
+                for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
+                rounds++
+            }
         } else {
-            val all = mutableListOf<MessageRow>()
             var wm: String = watermark
             while (true) {
                 val page = api.fetchMessagesAfter(conv.id, wm)
-                all.addAll(page)
+                for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
                 if (page.size < 200) break
                 wm = page.last().createdAt
             }
-            all
         }
 
-        var incomingNew = 0
-        for (row in fetched) {
-            if (processRow(conv, row, session, peerPublicKey)) incomingNew++
-        }
+        // Self-heal: retry envelopes that are stored but not yet decrypted
+        // (session arrived later, process died mid-sync in an older version…).
+        if (session != null) healPlaceholders(conv, session)
+
+        reconcileEditsAndDeletes(conv, session)
+        startExpiryForReadOwnMessages(conv, peer)
 
         if (markReadWanted && incomingNew > 0) {
             try {
@@ -300,10 +425,137 @@ class ChatRepository(
                 "⚠️ کلید امنیتی مخاطب عوض شده است (مثلاً نصب دوباره اپ). پیام‌های این نشست خوانا می‌مانند، اما برای نشست تازه از بخش امنیت بازنشانی کنید."
             else -> null
         }
-        return SyncResult(db.listVisible(conv.id).map(::toUi), state, peer, notice)
+        val page = latestPage(conv.id)
+        return SyncResult(page.messages, state, peer, notice, page.hasMore)
     }
 
-    /** Returns true if a new visible incoming message was stored. */
+    private fun latestPage(conversationId: String): PageResult {
+        val rows = db.listVisibleLatest(conversationId, PAGE_SIZE)
+        val hasMore = db.countVisible(conversationId) > rows.size
+        return PageResult(rows.map(::toUi), hasMore)
+    }
+
+    private fun purgeExpired() {
+        val doomed = db.purgeExpired(System.currentTimeMillis())
+        for (row in doomed) {
+            if (row.senderId == api.myUserId && row.serverId != null) {
+                try {
+                    api.deleteMessage(row.serverId)
+                } catch (e: Exception) {
+                    // Local copy is gone; server ciphertext cleanup is best effort.
+                }
+            }
+        }
+    }
+
+    private fun startExpiryForReadOwnMessages(conv: Conversation, peer: MemberInfo?) {
+        val peerRead = UiUtil.parseInstant(peer?.lastReadAt ?: "") ?: return
+        val now = System.currentTimeMillis()
+        for (row in db.listAwaitingExpiry(conv.id, myId)) {
+            val created = UiUtil.parseInstant(row.createdAt) ?: continue
+            if (!created.isAfter(peerRead)) {
+                db.setExpiresAt(row.localId, now + row.ttlSeconds * 1000L)
+            }
+        }
+    }
+
+    private fun reconcileEditsAndDeletes(conv: Conversation, session: SecretSession?) {
+        val key = "editwm:${conv.id}"
+        val wm = secure.getSecret(key) ?: "1970-01-01T00:00:00Z"
+        val rows = try {
+            api.fetchEditedOrDeletedSince(conv.id, wm)
+        } catch (e: Exception) {
+            return
+        }
+        if (rows.isEmpty()) return
+        var maxWm = wm
+        for (row in rows) {
+            listOfNotNull(row.editedAt, row.deletedAt).forEach { if (it > maxWm) maxWm = it }
+            val existing = db.getByServerId(row.id)
+            if (existing == null) {
+                processRow(conv, row, session, null)
+            } else if (row.deletedAt != null) {
+                if (!existing.deleted) {
+                    // Consume the ratchet step for never-decrypted tombstones.
+                    if (row.kind == "e2ee" && row.senderId != myId && session != null &&
+                        existing.plainText == null && existing.envelopeBody != null
+                    ) {
+                        tryDecryptAndApply(conv, existing.serverId!!, existing, session, tombstone = true)
+                    }
+                    db.markDeletedByServerId(row.id)
+                }
+            } else if (row.editedAt != null && existing != null && row.kind == "text" &&
+                !existing.deleted && existing.envelopeBody != row.body
+            ) {
+                db.updateTextByServerId(row.id, row.body)
+            }
+        }
+        secure.putSecret(key, maxWm)
+    }
+
+    private fun healPlaceholders(conv: Conversation, session: SecretSession) {
+        if (!session.hasSession()) return
+        for (row in db.listPlaceholders(conv.id)) {
+            if (row.senderId == myId || row.serverId == null) continue
+            if (SecretSession.isKx(row.envelopeBody ?: "")) continue
+            tryDecryptAndApply(conv, row.serverId, row, session, tombstone = false)
+        }
+    }
+
+    /**
+     * Decrypts one stored envelope and applies its payload (text / timed /
+     * revise / end-of-secret), persisting plaintext BEFORE session state so
+     * a process death can never lose a message whose key was consumed.
+     */
+    private fun tryDecryptAndApply(
+        conv: Conversation,
+        serverId: String,
+        local: LocalMessage,
+        session: SecretSession,
+        tombstone: Boolean,
+    ): Boolean {
+        val body = local.envelopeBody ?: return false
+        val plain = try {
+            synchronized(sessionLock) { session.decrypt(body) }
+        } catch (e: Exception) {
+            return false
+        }
+        when {
+            plain.endOfSecret -> {
+                synchronized(sessionLock) {
+                    session.reset()
+                    saveSession(session)
+                }
+                insertSystemNotice(
+                    conv.id, "sys:end:$serverId",
+                    "🔓 مخاطب چت امن را پایان داد؛ پیام‌های تازه عادی ارسال می‌شوند.",
+                )
+            }
+            plain.reviseTargetId != null -> {
+                val target = db.getByServerId(plain.reviseTargetId)
+                if (target != null && !target.deleted) {
+                    db.applyReviseByServerId(plain.reviseTargetId, plain.text)
+                }
+                synchronized(sessionLock) { saveSession(session) }
+            }
+            tombstone -> {
+                // Sequence consumed; plaintext intentionally discarded.
+                synchronized(sessionLock) { saveSession(session) }
+            }
+            else -> {
+                val expires = if (plain.ttlSeconds > 0) {
+                    System.currentTimeMillis() + plain.ttlSeconds * 1000L
+                } else {
+                    null
+                }
+                db.updatePlainByServerId(serverId, plain.text, plain.ttlSeconds, expires)
+                synchronized(sessionLock) { saveSession(session) }
+            }
+        }
+        return true
+    }
+
+    /** Returns true if a NEW incoming row (any kind) was stored. */
     private fun processRow(
         conv: Conversation,
         row: MessageRow,
@@ -312,7 +564,18 @@ class ChatRepository(
     ): Boolean {
         val me = myId
         db.getByServerId(row.id)?.let { existing ->
-            if (row.deletedAt != null && !existing.deleted) db.markDeletedByServerId(row.id)
+            if (row.deletedAt != null && !existing.deleted) {
+                if (row.kind == "e2ee" && row.senderId != me && session != null &&
+                    existing.plainText == null && existing.envelopeBody != null
+                ) {
+                    tryDecryptAndApply(conv, row.id, existing, session, tombstone = true)
+                }
+                db.markDeletedByServerId(row.id)
+            } else if (row.deletedAt == null && row.kind == "text" && row.editedAt != null &&
+                !existing.deleted && existing.envelopeBody != row.body
+            ) {
+                db.updateTextByServerId(row.id, row.body)
+            }
             return false
         }
         if (row.clientId.isNotEmpty()) {
@@ -330,50 +593,44 @@ class ChatRepository(
         }
 
         val incoming = row.senderId != me
-        if (row.deletedAt != null) {
-            db.insert(row.id, row.clientId.ifEmpty { UUID.randomUUID().toString() }, conv.id,
-                row.senderId, row.kind, null, null, row.createdAt, LocalDb.STATUS_SENT, true)
-            return incoming
-        }
+        val deleted = row.deletedAt != null
+        val clientId = row.clientId.ifEmpty { UUID.randomUUID().toString() }
 
         if (conv.kind == "group" || row.kind == "text") {
-            db.insert(row.id, row.clientId.ifEmpty { UUID.randomUUID().toString() }, conv.id,
-                row.senderId, row.kind, row.body, row.body, row.createdAt, LocalDb.STATUS_SENT, false)
+            db.insert(row.id, clientId, conv.id, row.senderId, row.kind,
+                if (deleted) null else row.body, if (deleted) null else row.body,
+                row.createdAt, LocalDb.STATUS_SENT, deleted)
             return incoming
         }
 
         // kind == e2ee
         if (SecretSession.isKx(row.body)) {
             handleKxRow(conv, row, session, peerPublicKey)
-            db.insert(row.id, row.clientId.ifEmpty { UUID.randomUUID().toString() }, conv.id,
-                row.senderId, "e2ee", row.body, null, row.createdAt, LocalDb.STATUS_KX, false)
-            return false
+            db.insert(row.id, clientId, conv.id, row.senderId, "e2ee", row.body, null,
+                row.createdAt, LocalDb.STATUS_KX, false)
+            return incoming
         }
 
         if (!incoming) {
-            // Own encrypted message authored elsewhere (cannot be decrypted with
-            // the receive chain); keep a placeholder.
-            db.insert(row.id, row.clientId.ifEmpty { UUID.randomUUID().toString() }, conv.id,
-                row.senderId, "e2ee", row.body, null, row.createdAt, LocalDb.STATUS_SENT, false)
+            // Own encrypted message authored elsewhere: placeholder.
+            db.insert(row.id, clientId, conv.id, row.senderId, "e2ee", row.body, null,
+                row.createdAt, LocalDb.STATUS_SENT, deleted)
             return false
         }
 
-        var plain: String? = null
+        val control = SecretSession.isControl(row.body)
+        // Insert first (placeholder), decrypt second, persist session last —
+        // crash-safe ordering: a consumed key always has its envelope stored.
+        db.insert(
+            row.id, clientId, conv.id, row.senderId, "e2ee", row.body, null,
+            row.createdAt, if (control) LocalDb.STATUS_HIDDEN else LocalDb.STATUS_SENT, deleted,
+        )
         if (session != null) {
-            plain = try {
-                synchronized(sessionLock) {
-                    val text = session.decrypt(row.body)
-                    saveSession(session)
-                    text
-                }
-            } catch (e: DecryptException) {
-                null
-            } catch (e: Exception) {
-                null
+            db.getByServerId(row.id)?.let { stored ->
+                tryDecryptAndApply(conv, row.id, stored, session, tombstone = deleted)
             }
+            if (deleted) db.markDeletedByServerId(row.id)
         }
-        db.insert(row.id, row.clientId.ifEmpty { UUID.randomUUID().toString() }, conv.id,
-            row.senderId, "e2ee", row.body, plain, row.createdAt, LocalDb.STATUS_SENT, false)
         return true
     }
 
@@ -383,6 +640,7 @@ class ChatRepository(
         val kx = SecretSession.parseKx(row.body) ?: return
         when (kx.stage) {
             "k1" -> {
+                val hadSession = synchronized(sessionLock) { session.hasSession() }
                 val storedKey = "kxaccept:${row.id}"
                 var acceptEnvelope = secure.getSecret(storedKey)
                 if (acceptEnvelope == null) {
@@ -401,23 +659,39 @@ class ChatRepository(
                     val deterministicClientId = UUID.nameUUIDFromBytes(
                         "accept:${row.id}".toByteArray(Charsets.UTF_8),
                     ).toString()
-                    if (queueKx(conv.id, acceptEnvelope, deterministicClientId)) {
+                    if (queueHiddenEnvelope(conv.id, acceptEnvelope, deterministicClientId)) {
                         secure.removeSecret(storedKey)
+                    }
+                    if (!hadSession) {
+                        insertSystemNotice(conv.id, "sys:start:${row.id}", "🔒 چت امن فعال شد؛ پیام‌های تازه رمزنگاری سرتاسری می‌شوند.")
                     }
                 }
             }
             "k2" -> {
-                synchronized(sessionLock) {
-                    if (session.handleKxAccept(row.body, peerPublicKey, System.currentTimeMillis())) {
-                        saveSession(session)
-                    }
+                val hadSession = synchronized(sessionLock) { session.hasSession() }
+                val accepted = synchronized(sessionLock) {
+                    val ok = session.handleKxAccept(row.body, peerPublicKey, System.currentTimeMillis())
+                    if (ok) saveSession(session)
+                    ok
+                }
+                if (accepted && !hadSession) {
+                    insertSystemNotice(conv.id, "sys:start:${row.id}", "🔒 چت امن فعال شد؛ پیام‌های تازه رمزنگاری سرتاسری می‌شوند.")
                 }
             }
         }
     }
 
-    /** Inserts (or reuses) a local hidden row for a kx envelope and tries to post it. */
-    private fun queueKx(conversationId: String, envelope: String, clientId: String): Boolean {
+    private fun insertSystemNotice(conversationId: String, clientId: String, text: String) {
+        if (db.getByClientId(clientId) != null) return
+        db.insert(
+            serverId = null, clientId = clientId, conversationId = conversationId,
+            senderId = "", kind = "text", envelopeBody = null, plainText = text,
+            createdAt = Instant.now().toString(), status = LocalDb.STATUS_SENT, deleted = false,
+        )
+    }
+
+    /** Inserts (or reuses) a hidden local row for a kx/control envelope and posts it. */
+    private fun queueHiddenEnvelope(conversationId: String, envelope: String, clientId: String): Boolean {
         if (db.getByClientId(clientId) == null) {
             db.insert(
                 serverId = null, clientId = clientId, conversationId = conversationId,
@@ -425,10 +699,10 @@ class ChatRepository(
                 createdAt = Instant.now().toString(), status = LocalDb.STATUS_KX_PENDING, deleted = false,
             )
         }
-        return tryPostKx(clientId)
+        return tryPostHidden(clientId)
     }
 
-    private fun tryPostKx(clientId: String): Boolean {
+    private fun tryPostHidden(clientId: String): Boolean {
         val local = db.getByClientId(clientId) ?: return false
         if (local.status == LocalDb.STATUS_KX) return true
         val envelope = local.envelopeBody ?: return false
@@ -437,13 +711,7 @@ class ChatRepository(
             db.markKxSentByClientId(clientId, row.id, row.createdAt)
             true
         } catch (e: ApiException) {
-            if (e.code == "23505") {
-                // Already on the server (ambiguous earlier retry); the echo in a
-                // later sync will reconcile the server id by client_id.
-                true
-            } else {
-                false
-            }
+            e.code == "23505" // already on the server; echo reconciles later
         } catch (e: Exception) {
             false
         }
@@ -451,7 +719,21 @@ class ChatRepository(
 
     private fun flushPendingKx(conversationId: String) {
         for (pending in db.listPendingKx(conversationId)) {
-            tryPostKx(pending.clientId)
+            tryPostHidden(pending.clientId)
+        }
+    }
+
+    private fun postOrMarkFailed(conversationId: String, body: String, kind: String, clientId: String, localId: Long) {
+        try {
+            val row = api.insertMessage(conversationId, myId, body, kind, clientId)
+            db.markSentByClientId(clientId, row.id, row.createdAt)
+        } catch (e: Exception) {
+            if (e is ApiException && e.code == "23505") {
+                db.setStatusByLocalId(localId, LocalDb.STATUS_SENT) // idempotent duplicate
+            } else {
+                db.setStatusByLocalId(localId, LocalDb.STATUS_FAILED)
+                throw e
+            }
         }
     }
 
@@ -462,16 +744,23 @@ class ChatRepository(
             senderId = myId, kind = "text", envelopeBody = text, plainText = text,
             createdAt = Instant.now().toString(), status = LocalDb.STATUS_SENDING, deleted = false,
         )
-        try {
-            val row = api.insertMessage(conversationId, myId, text, "text", clientId)
-            db.markSentByClientId(clientId, row.id, row.createdAt)
-        } catch (e: Exception) {
-            db.setStatusByLocalId(localId, LocalDb.STATUS_FAILED)
-            throw e
-        }
+        postOrMarkFailed(conversationId, text, "text", clientId, localId)
     }
 
     // ------------------------------------------------------------ helpers
+    private fun peerProfileCached(peerId: String, force: Boolean): Profile? {
+        val now = System.currentTimeMillis()
+        val cached = profileCache[peerId]
+        if (!force && cached != null && now - cached.second < PROFILE_TTL_MS) return cached.first
+        val fresh = try {
+            api.fetchProfile(peerId)
+        } catch (e: Exception) {
+            null
+        }
+        if (fresh != null) profileCache[peerId] = fresh to now
+        return fresh ?: cached?.first
+    }
+
     private fun computeState(isGroup: Boolean, session: SecretSession?, peerKeyBlocked: SessionUiState?): SessionUiState {
         if (isGroup) return SessionUiState.GROUP_PLAIN
         if (session?.hasSession() == true) return SessionUiState.READY
@@ -530,10 +819,12 @@ class ChatRepository(
     private fun previewOf(conv: Conversation): String {
         val last = conv.lastMessage ?: return "گفتگو ایجاد شد"
         if (last.deletedAt != null) return "پیام حذف شد"
+        val local = db.getByServerId(last.id)
+        if (local?.deleted == true) return "پیام حذف شد"
         val prefix = if (last.senderId == api.myUserId) "شما: " else ""
         if (last.kind == "e2ee") {
-            if (SecretSession.isKx(last.body)) return "🔐 چت امن"
-            val localText = db.getByServerId(last.id)?.plainText
+            if (SecretSession.isKx(last.body) || SecretSession.isControl(last.body)) return "🔐 چت امن"
+            val localText = local?.plainText
             return if (localText != null) prefix + localText else "🔒 پیام رمزنگاری‌شده"
         }
         return prefix + last.body
@@ -549,6 +840,11 @@ class ChatRepository(
         status = local.status,
         deleted = local.deleted,
         encrypted = local.kind == "e2ee",
+        ttlSeconds = local.ttlSeconds,
+        expiresAtMs = local.expiresAtMs,
+        expired = local.expired,
+        edited = local.edited,
+        system = local.senderId.isEmpty(),
     )
 
     private fun <T> ioCall(callback: (Result<T>) -> Unit, block: () -> T) {
@@ -556,5 +852,11 @@ class ChatRepository(
             val result = runCatching(block)
             Threads.runUi { callback(result) }
         }
+    }
+
+    private companion object {
+        const val PAGE_SIZE = 100
+        const val MAX_PLAIN_CHARS = 4000
+        const val PROFILE_TTL_MS = 5 * 60 * 1000L
     }
 }

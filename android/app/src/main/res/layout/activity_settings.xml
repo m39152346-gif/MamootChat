@@ -118,6 +118,52 @@
                 android:textColor="@color/text2"
                 android:textSize="12.5sp" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:text="حساب و امنیت"
+                android:textColor="@color/text"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnChangePassword"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="start|center_vertical"
+                android:text="🔑 تغییر رمز عبور"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnAppLock"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start|center_vertical"
+                android:text="🔒 قفل برنامه"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnBlockedUsers"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start|center_vertical"
+                android:text="🚫 کاربران مسدود"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnDeleteAccount"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start|center_vertical"
+                android:text="🗑 حذف حساب کاربری"
+                android:textColor="@color/danger" />
+
             <Button
                 android:id="@+id/btnLogout"
                 android:layout_width="match_parent"

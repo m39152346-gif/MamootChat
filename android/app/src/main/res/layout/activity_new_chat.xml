@@ -27,10 +27,67 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="گفتگوی امن جدید"
+            android:text="گفتگوی جدید"
             android:textColor="@color/text"
             android:textSize="18sp"
             android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="13dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="13dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnNewModeDm"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="💬 گفتگوی خصوصی" />
+
+        <Button
+            android:id="@+id/btnNewModeGroup"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="👥 ساخت گروه" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/layoutGroupCreate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="13dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="13dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etGroupTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/field_bg"
+            android:hint="نام گروه"
+            android:inputType="text"
+            android:maxLength="80"
+            android:padding="13dp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text2" />
+
+        <Button
+            android:id="@+id/btnCreateGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="@color/brand"
+            android:enabled="false"
+            android:text="ساخت گروه (۰ عضو انتخاب شده)"
+            android:textColor="@color/white" />
     </LinearLayout>
 
     <EditText
@@ -52,7 +109,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:padding="16dp"
-        android:text="نام کاربری مخاطب را جستجو کنید.\nچت امن فقط بین دو گوشی دارای اپ مموت برقرار می‌شود."
+        android:text="نام کاربری مخاطب را جستجو کنید."
         android:textColor="@color/text2"
         android:textSize="14sp" />
 

@@ -63,6 +63,8 @@ class UserAdapter(
     private val items: MutableList<Profile> = mutableListOf(),
 ) : BaseAdapter() {
 
+    var selectedIds: Set<String> = emptySet()
+
     fun submit(newItems: List<Profile>) {
         items.clear()
         items.addAll(newItems)
@@ -78,8 +80,11 @@ class UserAdapter(
             .inflate(R.layout.item_user, parent, false)
         val user = items[position]
         val avatar = view.findViewById<TextView>(R.id.tvUserAvatar)
-        avatar.text = UiUtil.initials(user.displayName)
-        avatar.background.mutate().setTint(UiUtil.avatarColor(user.id))
+        val selected = user.id in selectedIds
+        avatar.text = if (selected) "✓" else UiUtil.initials(user.displayName)
+        avatar.background.mutate().setTint(
+            if (selected) context.getColor(R.color.brand) else UiUtil.avatarColor(user.id),
+        )
         view.findViewById<TextView>(R.id.tvUserName).text = user.displayName
         view.findViewById<TextView>(R.id.tvUserHandle).text = "@${user.username}"
         view.findViewById<TextView>(R.id.tvUserLock).text = if (user.e2eIdentityKey != null) "🔒" else ""
@@ -102,6 +107,14 @@ class MessageAdapter(
         notifyDataSetChanged()
     }
 
+    fun prepend(older: List<UiMessage>) {
+        val known = items.map { it.localId }.toSet()
+        items.addAll(0, older.filter { it.localId !in known })
+        notifyDataSetChanged()
+    }
+
+    fun snapshot(): List<UiMessage> = items.toList()
+
     override fun getCount(): Int = items.size
     override fun getItem(position: Int): UiMessage = items[position]
     override fun getItemId(position: Int): Long = items[position].localId
@@ -123,12 +136,27 @@ class MessageAdapter(
         val meta = view.findViewById<TextView>(R.id.tvMeta)
         val maxWidth = (context.resources.displayMetrics.widthPixels * 0.79).toInt()
         bubble.maxWidth = maxWidth
+        meta.visibility = View.VISIBLE
+
+        if (msg.system) {
+            (bubble.layoutParams as LinearLayout.LayoutParams).gravity = Gravity.CENTER_HORIZONTAL
+            bubble.setBackgroundResource(R.drawable.day_bg)
+            bubble.setTextColor(context.getColor(R.color.text2))
+            bubble.text = msg.text ?: ""
+            meta.visibility = View.GONE
+            return view
+        }
 
         val gravity = if (msg.mine) Gravity.END else Gravity.START
         (bubble.layoutParams as LinearLayout.LayoutParams).gravity = gravity
         (meta.layoutParams as LinearLayout.LayoutParams).gravity = gravity
 
         when {
+            msg.expired -> {
+                bubble.setBackgroundResource(R.drawable.bubble_deleted)
+                bubble.setTextColor(context.getColor(R.color.text2))
+                bubble.text = "⏱ این پیام خودکار حذف شد"
+            }
             msg.deleted -> {
                 bubble.setBackgroundResource(R.drawable.bubble_deleted)
                 bubble.setTextColor(context.getColor(R.color.text2))
@@ -151,16 +179,22 @@ class MessageAdapter(
             }
         }
 
-        val statusSuffix = if (msg.mine && !msg.deleted) {
+        val readInstant = UiUtil.parseInstant(peerLastReadAt)
+        val createdInstant = UiUtil.parseInstant(msg.createdAt)
+        val isRead = readInstant != null && createdInstant != null && !readInstant.isBefore(createdInstant)
+        val statusSuffix = if (msg.mine && !msg.deleted && !msg.expired) {
             when (msg.status) {
                 LocalDb.STATUS_SENDING -> " · 🕐"
                 LocalDb.STATUS_FAILED -> " · ⚠️ ارسال نشد"
-                else -> if (peerLastReadAt.isNotEmpty() && peerLastReadAt >= msg.createdAt) " · ✓✓" else " · ✓"
+                else -> if (isRead) " · ✓✓" else " · ✓"
             }
         } else {
             ""
         }
-        meta.text = UiUtil.formatTime(msg.createdAt) + statusSuffix
+        val lockMark = if (msg.encrypted && !msg.deleted && !msg.expired) "🔒 " else ""
+        val ttlMark = if (msg.ttlSeconds > 0 && !msg.expired && !msg.deleted) " · ⏱" else ""
+        val editedMark = if (msg.edited && !msg.deleted && !msg.expired) " · ویرایش شد" else ""
+        meta.text = lockMark + UiUtil.formatTime(msg.createdAt) + editedMark + ttlMark + statusSuffix
         return view
     }
 }

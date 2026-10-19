@@ -31,11 +31,14 @@ class BackgroundCheckJob : JobService() {
         }
         Threads.runIo {
             try {
-                val total = app.api.listConversations().sumOf { it.unreadCount }
+                val conversations = app.api.listConversations()
+                val total = conversations.sumOf { it.unreadCount }
                 val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 val lastNotified = prefs.getInt(KEY_LAST_UNREAD, 0)
                 if (total > lastNotified && total > 0) {
-                    showNotification()
+                    val target = conversations.filter { it.unreadCount > 0 }
+                        .maxByOrNull { it.unreadCount }?.id
+                    showNotification(target)
                 }
                 prefs.edit().putInt(KEY_LAST_UNREAD, total).apply()
             } catch (e: Exception) {
@@ -49,9 +52,10 @@ class BackgroundCheckJob : JobService() {
 
     override fun onStopJob(params: JobParameters?): Boolean = true
 
-    private fun showNotification() {
+    private fun showNotification(targetConversationId: String?) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (targetConversationId != null) putExtra(MamootApp.EXTRA_OPEN_CONV, targetConversationId)
         }
         val pending = PendingIntent.getActivity(
             this, 0, intent,
@@ -66,7 +70,7 @@ class BackgroundCheckJob : JobService() {
             .setCategory(Notification.CATEGORY_MESSAGE)
             .build()
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(1001, notification)
+        manager?.notify(MamootApp.NOTIFICATION_ID, notification)
     }
 
     companion object {

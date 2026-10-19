@@ -38,11 +38,11 @@ class SecretSessionTest {
         val (a, b) = readyPair()
         val e1 = a.encrypt("سلام مموت")
         assertFalse(e1.contains("سلام"))
-        assertEquals("سلام مموت", b.decrypt(e1))
+        assertEquals("سلام مموت", b.decrypt(e1).text)
         val e2 = b.encrypt("سلام! چطوری؟")
-        assertEquals("سلام! چطوری؟", a.decrypt(e2))
+        assertEquals("سلام! چطوری؟", a.decrypt(e2).text)
         repeat(10) { i ->
-            assertEquals("msg $i", b.decrypt(a.encrypt("msg $i")))
+            assertEquals("msg $i", b.decrypt(a.encrypt("msg $i")).text)
         }
     }
 
@@ -53,8 +53,8 @@ class SecretSessionTest {
         val m1 = a.encrypt("one")
         val m2 = a.encrypt("two")
         assertEquals("one", b.decrypt(m1)) // gap tolerated, key for m0 is skipped-stored
-        assertEquals("zero", b.decrypt(m0))
-        assertEquals("two", b.decrypt(m2))
+        assertEquals("zero", b.decrypt(m0).text)
+        assertEquals("two", b.decrypt(m2).text)
         try {
             b.decrypt(m0)
             fail("replayed message must be rejected")
@@ -77,7 +77,7 @@ class SecretSessionTest {
         } catch (expected: DecryptException) {
             // expected
         }
-        assertEquals("authentic", b.decrypt(good))
+        assertEquals("authentic", b.decrypt(good).text)
     }
 
     @Test
@@ -105,20 +105,20 @@ class SecretSessionTest {
         assertFalse(oldFingerprint == a.currentFingerprint())
 
         // New-epoch message promotes the future key on B's side.
-        assertEquals("new epoch message", b.decrypt(a.encrypt("new epoch message")))
+        assertEquals("new epoch message", b.decrypt(a.encrypt("new epoch message")).text)
         assertEquals(a.currentFingerprint(), b.currentFingerprint())
 
         // B's old-epoch in-flight message still decrypts on A via the previous epoch.
-        assertEquals("old epoch message", a.decrypt(oldInflightFromB))
+        assertEquals("old epoch message", a.decrypt(oldInflightFromB).text)
     }
 
     @Test
     fun serializationPreservesRatchetState() {
         val (a, b) = readyPair()
-        assertEquals("first", b.decrypt(a.encrypt("first")))
+        assertEquals("first", b.decrypt(a.encrypt("first")).text)
         val restored = SecretSession.deserialize(b.serialize())
-        assertEquals("second", restored.decrypt(a.encrypt("second")))
-        assertEquals("reply", a.decrypt(restored.encrypt("reply")))
+        assertEquals("second", restored.decrypt(a.encrypt("second")).text)
+        assertEquals("reply", a.decrypt(restored.encrypt("reply")).text)
     }
 
     @Test
@@ -130,7 +130,7 @@ class SecretSessionTest {
         } catch (expected: MessageTooLongException) {
             // expected
         }
-        assertEquals("still in sync", b.decrypt(a.encrypt("still in sync")))
+        assertEquals("still in sync", b.decrypt(a.encrypt("still in sync")).text)
     }
 
     @Test
@@ -151,6 +151,22 @@ class SecretSessionTest {
             // expected
         }
         // The real session is untouched.
-        assertEquals("real", b.decrypt(a.encrypt("real")))
+        assertEquals("real", b.decrypt(a.encrypt("real")).text)
+    }
+
+    @Test
+    fun timedControlAndRevisePayloads() {
+        val (a, b) = readyPair()
+        val timed = b.decrypt(a.encrypt("زود پاک می‌شود", ttlSeconds = 60))
+        assertEquals("زود پاک می‌شود", timed.text)
+        assertEquals(60, timed.ttlSeconds)
+        val plain = b.decrypt(a.encrypt("معمولی"))
+        assertEquals(0, plain.ttlSeconds)
+        val end = b.decrypt(a.encryptControlEnd())
+        assertTrue(end.endOfSecret)
+        val revise = b.decrypt(a.encryptRevise("srv-123", "متن ویرایش‌شده"))
+        assertEquals("srv-123", revise.reviseTargetId)
+        assertEquals("متن ویرایش‌شده", revise.text)
+        assertTrue(SecretSession.isControl(a.encryptRevise("x", "y")))
     }
 }

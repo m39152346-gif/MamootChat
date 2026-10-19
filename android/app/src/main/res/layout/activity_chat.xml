@@ -35,6 +35,7 @@
             android:textStyle="bold" />
 
         <LinearLayout
+            android:id="@+id/layoutChatHeader"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
@@ -59,6 +60,15 @@
                 android:textColor="@color/text2"
                 android:textSize="12sp" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnChatSearch"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="جستجو در گفتگو"
+            android:text="🔎"
+            android:textSize="18sp" />
 
         <Button
             android:id="@+id/btnSecurity"
@@ -98,6 +108,66 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/layoutSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface2"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etChatSearch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/field_bg"
+            android:hint="جستجو در این گفتگو…"
+            android:inputType="text"
+            android:padding="10dp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text2" />
+
+        <Button
+            android:id="@+id/btnSearchPrev"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="قبلی"
+            android:text="▲"
+            android:textColor="@color/text" />
+
+        <Button
+            android:id="@+id/btnSearchNext"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="بعدی"
+            android:text="▼"
+            android:textColor="@color/text" />
+
+        <Button
+            android:id="@+id/btnSearchClose"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="بستن جستجو"
+            android:text="✕"
+            android:textColor="@color/text" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnLoadOlder"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="نمایش پیام‌های قدیمی‌تر ↑"
+        android:textColor="@color/brand"
+        android:visibility="gone" />
+
     <ListView
         android:id="@+id/lvMessages"
         android:layout_width="match_parent"
@@ -131,6 +201,18 @@
             android:paddingBottom="10dp"
             android:textColor="@color/text"
             android:textColorHint="@color/text2" />
+
+        <Button
+            android:id="@+id/btnTtl"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:contentDescription="حذف خودکار پیام"
+            android:text="⏱"
+            android:textColor="@color/text2"
+            android:textSize="17sp"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btnSend"
