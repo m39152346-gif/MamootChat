@@ -46,6 +46,7 @@ class ChatActivity : Activity() {
     private var lastMessageCount = -1
     private var currentState: SessionUiState = SessionUiState.NO_SESSION
     private var firstLoadDone = false
+    private var resumed = false
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -99,12 +100,14 @@ class ChatActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         pollIntervalMs = 2_500L
         doSync()
     }
 
     override fun onPause() {
         super.onPause()
+        resumed = false
         handler.removeCallbacks(pollRunnable)
     }
 
@@ -155,6 +158,7 @@ class ChatActivity : Activity() {
     }
 
     private fun scheduleNextPoll() {
+        if (!resumed) return
         handler.removeCallbacks(pollRunnable)
         handler.postDelayed(pollRunnable, pollIntervalMs)
     }

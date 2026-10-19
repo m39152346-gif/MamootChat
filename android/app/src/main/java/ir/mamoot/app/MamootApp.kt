@@ -66,6 +66,10 @@ class MamootApp : Application() {
         BackgroundCheckJob.schedule(this)
     }
 
+    fun cancelBackgroundChecks() {
+        BackgroundCheckJob.cancel(this)
+    }
+
     companion object {
         const val CHANNEL_MESSAGES = "mamoot_messages"
     }

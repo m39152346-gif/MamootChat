@@ -95,6 +95,7 @@ class SettingsActivity : Activity() {
             .setMessage("همه داده‌های مموت روی این گوشی — از جمله کلیدهای چت امن و پیام‌های ذخیره‌شده — پاک می‌شود. ادامه می‌دهید؟")
             .setNegativeButton("لغو", null)
             .setPositiveButton("خروج و پاک‌کردن") { _, _ ->
+                app.cancelBackgroundChecks()
                 Threads.runIo {
                     app.api.signOut()
                     app.repo.wipeLocal()
