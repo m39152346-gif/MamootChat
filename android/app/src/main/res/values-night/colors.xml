@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#7A7AE8</color>
+    <color name="bg">#0B141A</color>
+    <color name="surface">#111B21</color>
+    <color name="surface2">#1F2C33</color>
+    <color name="text">#E9EDEF</color>
+    <color name="text2">#8696A0</color>
+    <color name="border">#2A3942</color>
+    <color name="danger">#FF6B5E</color>
+    <color name="ok">#2ECC8F</color>
+    <color name="bubble_mine">#4C4CD0</color>
+    <color name="bubble_theirs">#1F2C33</color>
+    <color name="white">#FFFFFF</color>
+</resources>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:background="@color/surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="12dp">
+
+        <Button
+            android:id="@+id/btnBackNew"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="44dp"
+            android:layout_height="48dp"
+            android:contentDescription="بازگشت"
+            android:text="›"
+            android:textColor="@color/text"
+            android:textSize="26sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="گفتگوی امن جدید"
+            android:textColor="@color/text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/etSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="13dp"
+        android:background="@drawable/field_bg"
+        android:hint="جستجو با نام یا نام کاربری (حداقل ۲ حرف)…"
+        android:inputType="text"
+        android:padding="13dp"
+        android:singleLine="true"
+        android:textColor="@color/text"
+        android:textColorHint="@color/text2" />
+
+    <TextView
+        android:id="@+id/tvSearchHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="نام کاربری مخاطب را جستجو کنید.\nچت امن فقط بین دو گوشی دارای اپ مموت برقرار می‌شود."
+        android:textColor="@color/text2"
+        android:textSize="14sp" />
+
+    <ListView
+        android:id="@+id/lvUsers"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/surface"
+        android:divider="@color/border"
+        android:dividerHeight="1dp" />
+</LinearLayout>

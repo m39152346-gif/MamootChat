@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:background="@color/surface"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="12dp">
+
+            <Button
+                android:id="@+id/btnBackSettings"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="44dp"
+                android:layout_height="48dp"
+                android:contentDescription="بازگشت"
+                android:text="›"
+                android:textColor="@color/text"
+                android:textSize="26sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="پروفایل و امنیت"
+                android:textColor="@color/text"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:id="@+id/tvSettingsAvatar"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/avatar_circle"
+                android:gravity="center"
+                android:textColor="@color/white"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSettingsEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textColor="@color/text2"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/etSettingsDisplay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/field_bg"
+                android:hint="نام نمایشی"
+                android:inputType="textPersonName"
+                android:maxLength="50"
+                android:padding="13dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text2" />
+
+            <EditText
+                android:id="@+id/etSettingsUsername"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/field_bg"
+                android:hint="نام کاربری (انگلیسی)"
+                android:inputType="text"
+                android:maxLength="24"
+                android:padding="13dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text2" />
+
+            <TextView
+                android:id="@+id/tvSettingsError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/danger"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnSaveSettings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:backgroundTint="@color/brand"
+                android:text="ذخیره تغییرات"
+                android:textColor="@color/white" />
+
+            <TextView
+                android:id="@+id/tvIdentityInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/field_bg"
+                android:lineSpacingMultiplier="1.5"
+                android:padding="14dp"
+                android:textColor="@color/text2"
+                android:textSize="12.5sp" />
+
+            <Button
+                android:id="@+id/btnLogout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="خروج و پاک‌کردن داده‌های این گوشی"
+                android:textColor="@color/danger" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

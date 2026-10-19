@@ -222,8 +222,8 @@ export default function App() {
   if (booting || (session && profileLoading)) {
     return (
       <div className="boot-screen" role="status" aria-label="در حال بارگذاری">
-        <div className="boot-logo" aria-hidden="true">🦣</div>
-        <span>ماموت‌چت…</span>
+        <div className="boot-logo" aria-hidden="true">💬</div>
+        <span>مموت…</span>
       </div>
     )
   }
@@ -276,8 +276,8 @@ export default function App() {
           />
         ) : (
           <div className="welcome-pane">
-            <div className="welcome-emoji" aria-hidden="true">🦣</div>
-            <h2>به ماموت‌چت خوش آمدید</h2>
+            <div className="welcome-emoji" aria-hidden="true">💬</div>
+            <h2>به مموت خوش آمدید</h2>
             <p>یک گفتگو را از فهرست انتخاب کنید، یا یک گفتگوی تازه شروع کنید.</p>
             <button type="button" className="btn btn-primary" onClick={() => setShowNewChat(true)}>
               گفتگوی جدید

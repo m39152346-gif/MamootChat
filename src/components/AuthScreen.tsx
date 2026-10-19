@@ -70,8 +70,8 @@ export function AuthScreen() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo" aria-hidden="true">🦣</div>
-        <h1>ماموت‌چت</h1>
+        <div className="auth-logo" aria-hidden="true">💬</div>
+        <h1>مموت</h1>
         <p className="auth-sub">پیام‌رسان متنی سریع و امن؛ فقط متن، بدون حاشیه.</p>
 
         <div className="tabs" role="tablist" aria-label="ورود یا ثبت‌نام">
@@ -88,11 +88,11 @@ export function AuthScreen() {
             <>
               <label>
                 نام نمایشی
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={50} required autoComplete="name" placeholder="مثلاً ماموت خان" />
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={50} required autoComplete="name" placeholder="مثلاً علی رضایی" />
               </label>
               <label>
                 نام کاربری (انگلیسی)
-                <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={24} required autoComplete="username" dir="ltr" placeholder="mammoth_42" />
+                <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={24} required autoComplete="username" dir="ltr" placeholder="mamoot_42" />
                 <small className="hint">دیگران با این نام شما را پیدا می‌کنند: <span dir="ltr">@{username.trim().toLowerCase() || 'username'}</span></small>
               </label>
             </>

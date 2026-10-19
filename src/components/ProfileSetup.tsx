@@ -40,7 +40,7 @@ export function ProfileSetup({
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-logo" aria-hidden="true">🦣</div>
+        <div className="auth-logo" aria-hidden="true">💬</div>
         <h1>تکمیل پروفایل</h1>
         <p className="auth-sub">یک نام برای نمایش و یک نام کاربری یکتا انتخاب کنید.</p>
         <form onSubmit={onSubmit} className="auth-form">
@@ -50,7 +50,7 @@ export function ProfileSetup({
           </label>
           <label>
             نام کاربری (انگلیسی)
-            <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={24} required dir="ltr" placeholder="mammoth_42" />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={24} required dir="ltr" placeholder="mamoot_42" />
           </label>
           {error && <p className="alert alert-error" role="alert">{error}</p>}
           <button className="btn btn-primary btn-block" disabled={busy} type="submit">

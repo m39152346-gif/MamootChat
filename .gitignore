@@ -6,3 +6,11 @@ dist/
 *.log
 .DS_Store
 .vercel/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+*.keystore
+*.p12
