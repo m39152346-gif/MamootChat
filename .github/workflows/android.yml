@@ -28,12 +28,23 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - name: Install Android SDK packages (runner-provided SDK)
+        shell: bash
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          set -uo pipefail
+          {
+            echo "ANDROID_HOME=${ANDROID_HOME:-}"
+            echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+            SDKMANAGER="$(command -v sdkmanager || true)"
+            if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_HOME:-}" ]; then
+              SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+            fi
+            echo "sdkmanager=$SDKMANAGER"
+            ls "${ANDROID_HOME:-/nonexistent}" || true
+            yes | "$SDKMANAGER" --licenses > /dev/null || true
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          } 2>&1 | tee "$RUNNER_TEMP/sdk.log"
+          exit "${PIPESTATUS[0]}"
 
       - name: Prepare signing key
         shell: bash
@@ -65,11 +76,12 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          set -euo pipefail
-          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then export ANDROID_KEYSTORE_PASSWORD="$EPHEMERAL_KEYSTORE_PASSWORD"; fi
-          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then export ANDROID_KEY_PASSWORD="$EPHEMERAL_KEYSTORE_PASSWORD"; fi
+          set -uo pipefail
+          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then export ANDROID_KEYSTORE_PASSWORD="${EPHEMERAL_KEYSTORE_PASSWORD:-}"; fi
+          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then export ANDROID_KEY_PASSWORD="${EPHEMERAL_KEYSTORE_PASSWORD:-}"; fi
           if [ -z "${ANDROID_KEY_ALIAS:-}" ]; then export ANDROID_KEY_ALIAS="mamoot"; fi
-          gradle :app:testDebugUnitTest :app:assembleRelease --stacktrace --no-daemon
+          gradle :app:testDebugUnitTest :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+          exit "${PIPESTATUS[0]}"
 
       - name: Verify APK and collect outputs
         shell: bash
@@ -92,7 +104,7 @@ jobs:
             "$BT/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/out/mamoot.apk" || true
             echo
             echo "== unit test results =="
-            grep -h -E "tests=|failures=" android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null | head -n 20 || true
+            grep -h -E "testsuite " android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null | sed -E 's/.*name="([^"]+)".*tests="([0-9]+)".*failures="([0-9]+)".*errors="([0-9]+)".*/suite=\1 tests=\2 failures=\3 errors=\4/' || true
             echo
             echo "== apk size =="
             ls -lh "$RUNNER_TEMP/out/mamoot.apk"
@@ -127,3 +139,34 @@ jobs:
           git add mamoot.apk SHA256.txt VERIFICATION.txt README.md
           git commit -q -m "Android APK from $GITHUB_SHA"
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:apk-latest
+
+      - name: Publish CI logs to ci-logs branch (always)
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          LOGDIR="$RUNNER_TEMP/cilogs"
+          mkdir -p "$LOGDIR"
+          {
+            echo "commit=$GITHUB_SHA ref=$GITHUB_REF run=$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT"
+            echo "job_status=${{ job.status }}"
+            date -u
+          } > "$LOGDIR/INFO.txt"
+          for f in "$RUNNER_TEMP/sdk.log" "$RUNNER_TEMP/gradle.log"; do
+            if [ -f "$f" ]; then tail -c 400000 "$f" > "$LOGDIR/$(basename "$f")"; fi
+          done
+          if [ -d android/app/build/reports/tests ]; then
+            find android/app/build/reports/tests -name '*.html' -exec cp {} "$LOGDIR/" \; 2>/dev/null || true
+          fi
+          if [ -d android/app/build/test-results ]; then
+            grep -h -E "testsuite |failure |error " android/app/build/test-results/testDebugUnitTest/*.xml > "$LOGDIR/test-results.txt" 2>/dev/null || true
+          fi
+          cd "$LOGDIR"
+          git init -q -b ci-logs .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "CI logs for $GITHUB_SHA" || exit 0
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-logs || true
