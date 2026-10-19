@@ -14,6 +14,7 @@ import ir.mamoot.app.R
 import ir.mamoot.app.Threads
 import ir.mamoot.app.crypto.Crypto
 import ir.mamoot.app.util.UiUtil
+import ir.mamoot.app.util.PhoneNumbers
 
 class SettingsActivity : Activity() {
     private val app: MamootApp get() = application as MamootApp
@@ -30,7 +31,12 @@ class SettingsActivity : Activity() {
         etUsername = findViewById(R.id.etSettingsUsername)
         tvError = findViewById(R.id.tvSettingsError)
 
-        findViewById<TextView>(R.id.tvSettingsEmail).text = app.api.session?.email ?: ""
+        val currentSession = app.api.session
+        findViewById<TextView>(R.id.tvSettingsEmail).text = when {
+            !currentSession?.email.isNullOrBlank() -> currentSession?.email ?: ""
+            !currentSession?.phone.isNullOrBlank() -> PhoneNumbers.formatLocalDisplay(currentSession?.phone ?: "")
+            else -> ""
+        }
         findViewById<Button>(R.id.btnBackSettings).setOnClickListener { finish() }
         findViewById<Button>(R.id.btnSaveSettings).setOnClickListener { save() }
         findViewById<Button>(R.id.btnLogout).setOnClickListener { confirmLogout() }

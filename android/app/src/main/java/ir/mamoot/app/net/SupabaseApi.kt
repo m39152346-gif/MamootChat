@@ -67,6 +67,7 @@ data class SessionTokens(
     val userId: String,
     val email: String,
     val expiresAtMs: Long,
+    val phone: String = "",
 )
 
 /**
@@ -99,6 +100,30 @@ class SupabaseApi(private val secure: SecureStore) {
     fun signIn(email: String, password: String): SessionTokens {
         val body = JSONObject().put("email", email).put("password", password)
         val res = rawRequest("POST", "/auth/v1/token?grant_type=password", body.toString(), anonKey, null)
+        throwIfError(res)
+        return parseAndSaveSession(JSONObject(res.body))
+    }
+
+    /**
+     * Phone OTP login: Supabase Auth generates/verifies the code; delivery
+     * goes through our `send-sms` Auth Hook Edge Function (Iranian gateway).
+     * Creates the account on first login (create_user=true).
+     */
+    fun sendPhoneOtp(phoneE164: String) {
+        val body = JSONObject()
+            .put("phone", phoneE164)
+            .put("channel", "sms")
+            .put("create_user", true)
+        val res = rawRequest("POST", "/auth/v1/otp", body.toString(), anonKey, null)
+        throwIfError(res)
+    }
+
+    fun verifyPhoneOtp(phoneE164: String, code: String): SessionTokens {
+        val body = JSONObject()
+            .put("phone", phoneE164)
+            .put("token", code)
+            .put("type", "sms")
+        val res = rawRequest("POST", "/auth/v1/verify", body.toString(), anonKey, null)
         throwIfError(res)
         return parseAndSaveSession(JSONObject(res.body))
     }
@@ -159,6 +184,7 @@ class SupabaseApi(private val secure: SecureStore) {
             userId = user.optString("id"),
             email = user.optString("email"),
             expiresAtMs = expiresAtMs,
+            phone = user.optString("phone"),
         )
         session = tokens
         val stored = JSONObject()
@@ -166,6 +192,7 @@ class SupabaseApi(private val secure: SecureStore) {
             .put("refresh_token", tokens.refreshToken)
             .put("user_id", tokens.userId)
             .put("email", tokens.email)
+            .put("phone", tokens.phone)
             .put("expires_at_ms", tokens.expiresAtMs)
         secure.putSecret(KEY_SESSION, stored.toString())
         return tokens
@@ -181,6 +208,7 @@ class SupabaseApi(private val secure: SecureStore) {
                 userId = json.getString("user_id"),
                 email = json.optString("email"),
                 expiresAtMs = json.optLong("expires_at_ms"),
+                phone = json.optString("phone"),
             )
         } catch (e: Exception) {
             null
@@ -354,7 +382,7 @@ class SupabaseApi(private val secure: SecureStore) {
             setRequestProperty("Authorization", "Bearer $bearer")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Accept-Encoding", "gzip")
-            setRequestProperty("X-Client-Info", "mamoot-android/0.1.0")
+            setRequestProperty("X-Client-Info", "mamoot-android/0.2.0")
             if (prefer != null) setRequestProperty("Prefer", prefer)
             if (body != null) {
                 doOutput = true
@@ -404,6 +432,10 @@ class SupabaseApi(private val secure: SecureStore) {
             "email not confirmed" in m -> "ایمیل شما هنوز تأیید نشده است."
             "duplicate key" in m && "username" in m -> "این نام کاربری قبلاً گرفته شده است."
             "password should be" in m -> "رمز عبور ضعیف است."
+            "token has expired or is invalid" in m || "otp_expired" in m -> "کد تأیید اشتباه یا منقضی شده است؛ کد تازه بگیرید."
+            "over_sms_send_rate_limit" in m || "over_request_rate_limit" in m -> "تعداد درخواست پیامک زیاد است؛ یک دقیقه صبر کنید."
+            "error sending sms" in m || "sms_send_failed" in m || "hook" in m -> "ارسال پیامک ممکن نشد؛ کمی بعد دوباره تلاش کنید."
+            "invalid phone" in m || ("phone" in m && "invalid" in m) -> "شماره موبایل معتبر وارد کنید."
             else -> raw.ifEmpty { "خطای شبکه یا سرور" }
         }
     }
