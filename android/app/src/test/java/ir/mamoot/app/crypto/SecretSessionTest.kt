@@ -52,7 +52,7 @@ class SecretSessionTest {
         val m0 = a.encrypt("zero")
         val m1 = a.encrypt("one")
         val m2 = a.encrypt("two")
-        assertEquals("one", b.decrypt(m1)) // gap tolerated, key for m0 is skipped-stored
+        assertEquals("one", b.decrypt(m1).text) // gap tolerated, key for m0 is skipped-stored
         assertEquals("zero", b.decrypt(m0).text)
         assertEquals("two", b.decrypt(m2).text)
         try {
