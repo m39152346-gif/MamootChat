@@ -220,7 +220,7 @@ class SecretSessionTest {
         repeat(1105) { last = a.encrypt("m$it") }
         try {
             b.decrypt(last)
-            fail("a >1000-message gap must be rejected instead of skipping forever")
+            fail("a huge sequence gap must be rejected instead of skipping forever")
         } catch (expected: DecryptException) {
             // expected
         }
@@ -230,6 +230,10 @@ class SecretSessionTest {
     fun skippedKeysAreCappedAndOldestEvicted() {
         val (a, b) = readyPair()
         val envelopes = (0 until 300).map { a.encrypt("m$it") }
+        // Advance in <=100-message hops (the max tolerated gap) so almost
+        // 300 skipped keys accumulate and the 250-key cap must evict.
+        assertEquals("m99", b.decrypt(envelopes[99]).text)
+        assertEquals("m199", b.decrypt(envelopes[199]).text)
         assertEquals("m299", b.decrypt(envelopes[299]).text)
         // Keys far behind the 250-key cap were evicted.
         try {
