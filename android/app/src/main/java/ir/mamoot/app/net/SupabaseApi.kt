@@ -432,7 +432,7 @@ class SupabaseApi(private val secure: SecureStore) {
             setRequestProperty("Authorization", "Bearer $bearer")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Accept-Encoding", "gzip")
-            setRequestProperty("X-Client-Info", "mamoot-android/0.3.0")
+            setRequestProperty("X-Client-Info", "mamoot-android/0.3.1")
             if (prefer != null) setRequestProperty("Prefer", prefer)
             if (body != null) {
                 doOutput = true
