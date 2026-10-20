@@ -12,7 +12,7 @@ class CryptoSafetyNumberTest {
     fun pbkdf2MatchesRfcVector() {
         // RFC 7914 PBKDF2-HMAC-SHA256 test vector (first 32 bytes).
         val dk = Crypto.pbkdf2Sha256(
-            "password".toCharArray(),
+            "password".toByteArray(Charsets.UTF_8),
             "salt".toByteArray(Charsets.UTF_8),
             1,
             32,
