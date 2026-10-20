@@ -25,6 +25,24 @@
         android:visibility="gone" />
 
     <TextView
+        android:id="@+id/tvQuote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
+        android:layout_marginBottom="2dp"
+        android:background="@drawable/day_bg"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:paddingStart="9dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="9dp"
+        android:paddingBottom="4dp"
+        android:textColor="@color/text2"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/tvBubble"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -34,6 +52,21 @@
         android:paddingEnd="12dp"
         android:paddingBottom="7dp"
         android:textSize="15.5sp" />
+
+    <TextView
+        android:id="@+id/tvReactions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/day_bg"
+        android:paddingStart="8dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="2dp"
+        android:textSize="12.5sp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvMeta"

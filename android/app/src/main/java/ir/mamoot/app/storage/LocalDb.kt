@@ -22,6 +22,12 @@ data class LocalMessage(
     val expiresAtMs: Long? = null,
     val expired: Boolean = false,
     val edited: Boolean = false,
+    val replyToServerId: String? = null,
+    val forwarded: Boolean = false,
+    /** JSON object {userId: emoji}; stored encrypted at rest like plaintext. */
+    val reactionsJson: String? = null,
+    val retryCount: Int = 0,
+    val nextRetryMs: Long? = null,
 )
 
 /**
@@ -33,9 +39,19 @@ data class LocalMessage(
  * v2 adds: self-destruct timers (ttl_seconds / expires_at_ms / expired),
  * edited flag, and paginated history reads (no more loading + decrypting
  * the whole conversation on every refresh).
+ *
+ * v3 adds: reply threading (reply_to_server_id), forwarded flag, reaction
+ * cache (reactions_enc) and the outgoing retry schedule
+ * (retry_count / next_retry_ms) for the offline outbox. WAL is enabled for
+ * crash resilience and read/write concurrency.
  */
 class LocalDb(context: Context, private val secure: SecureStore) :
-    SQLiteOpenHelper(context, "mamoot.db", null, 2) {
+    SQLiteOpenHelper(context, "mamoot.db", null, 3) {
+
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        db.enableWriteAheadLogging()
+    }
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -55,7 +71,12 @@ class LocalDb(context: Context, private val secure: SecureStore) :
               ttl_seconds INTEGER NOT NULL DEFAULT 0,
               expires_at_ms INTEGER,
               expired INTEGER NOT NULL DEFAULT 0,
-              edited INTEGER NOT NULL DEFAULT 0
+              edited INTEGER NOT NULL DEFAULT 0,
+              reply_to_server_id TEXT,
+              forwarded INTEGER NOT NULL DEFAULT 0,
+              reactions_enc TEXT,
+              retry_count INTEGER NOT NULL DEFAULT 0,
+              next_retry_ms INTEGER
             )
             """.trimIndent(),
         )
@@ -69,6 +90,18 @@ class LocalDb(context: Context, private val secure: SecureStore) :
             db.execSQL("ALTER TABLE messages ADD COLUMN expired INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN reply_to_server_id TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN forwarded INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE messages ADD COLUMN reactions_enc TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE messages ADD COLUMN next_retry_ms INTEGER")
+        }
+    }
+
+    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Keep the data: extra columns are harmless to older code. Throwing
+        // (the default) would crash the app after a downgrade install.
     }
 
     @Synchronized
@@ -85,6 +118,8 @@ class LocalDb(context: Context, private val secure: SecureStore) :
         deleted: Boolean,
         ttlSeconds: Int = 0,
         expiresAtMs: Long? = null,
+        replyToServerId: String? = null,
+        forwarded: Boolean = false,
     ): Long {
         val values = ContentValues().apply {
             put("server_id", serverId)
@@ -99,6 +134,8 @@ class LocalDb(context: Context, private val secure: SecureStore) :
             put("deleted", if (deleted) 1 else 0)
             put("ttl_seconds", ttlSeconds)
             if (expiresAtMs != null) put("expires_at_ms", expiresAtMs)
+            put("reply_to_server_id", replyToServerId)
+            put("forwarded", if (forwarded) 1 else 0)
         }
         return writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -111,6 +148,8 @@ class LocalDb(context: Context, private val secure: SecureStore) :
             put("server_id", serverId)
             put("created_at", createdAt)
             put("status", STATUS_SENT)
+            put("retry_count", 0)
+            putNull("next_retry_ms")
         }
         writableDatabase.update("messages", values, "client_id = ?", arrayOf(clientId))
     }
@@ -142,11 +181,20 @@ class LocalDb(context: Context, private val secure: SecureStore) :
     }
 
     @Synchronized
-    fun updatePlainByServerId(serverId: String, plainText: String, ttlSeconds: Int, expiresAtMs: Long?) {
+    fun updatePlainByServerId(
+        serverId: String,
+        plainText: String,
+        ttlSeconds: Int,
+        expiresAtMs: Long?,
+        replyToServerId: String? = null,
+        forwarded: Boolean = false,
+    ) {
         val values = ContentValues().apply {
             put("plain_enc", secure.encrypt(plainText))
             put("ttl_seconds", ttlSeconds)
             if (expiresAtMs != null) put("expires_at_ms", expiresAtMs) else putNull("expires_at_ms")
+            put("reply_to_server_id", replyToServerId)
+            put("forwarded", if (forwarded) 1 else 0)
         }
         writableDatabase.update("messages", values, "server_id = ?", arrayOf(serverId))
     }
@@ -176,6 +224,89 @@ class LocalDb(context: Context, private val secure: SecureStore) :
     fun setExpiresAt(localId: Long, expiresAtMs: Long) {
         val values = ContentValues().apply { put("expires_at_ms", expiresAtMs) }
         writableDatabase.update("messages", values, "local_id = ?", arrayOf(localId.toString()))
+    }
+
+    @Synchronized
+    fun setReactionsJsonByServerId(serverId: String, reactionsJson: String?) {
+        val values = ContentValues().apply {
+            if (reactionsJson == null) putNull("reactions_enc") else put("reactions_enc", secure.encrypt(reactionsJson))
+        }
+        writableDatabase.update("messages", values, "server_id = ?", arrayOf(serverId))
+    }
+
+    @Synchronized
+    fun scheduleRetry(localId: Long, retryCount: Int, nextRetryMs: Long?) {
+        val values = ContentValues().apply {
+            put("status", STATUS_FAILED)
+            put("retry_count", retryCount)
+            if (nextRetryMs != null) put("next_retry_ms", nextRetryMs) else putNull("next_retry_ms")
+        }
+        writableDatabase.update("messages", values, "local_id = ?", arrayOf(localId.toString()))
+    }
+
+    /**
+     * Outgoing rows waiting to (re)post: never reached the server and their
+     * backoff window has elapsed. Includes rows stuck in "sending" by a
+     * process death.
+     */
+    fun listRetryableOutgoing(conversationId: String?, nowMs: Long, limit: Int): List<LocalMessage> {
+        var where = "server_id IS NULL AND env_body IS NOT NULL AND status IN (?, ?) " +
+            "AND (next_retry_ms IS NULL OR next_retry_ms <= ?)"
+        val args = mutableListOf(STATUS_FAILED, STATUS_SENDING, nowMs.toString())
+        if (conversationId != null) {
+            where += " AND conv_id = ?"
+            args.add(conversationId)
+        }
+        return queryList(where, args.toTypedArray(), "created_at ASC, local_id ASC", limit.toString())
+    }
+
+    /** Every stored row (incl. hidden kx/control) — encrypted-backup source. */
+    fun listAllForBackup(): List<LocalMessage> =
+        queryList("1 = 1", emptyArray(), "conv_id ASC, created_at ASC, local_id ASC", null)
+
+    /**
+     * Imports one backup row. Returns true when a new row was inserted;
+     * when the message already exists locally only missing fields are filled.
+     */
+    @Synchronized
+    fun insertBackup(m: LocalMessage): Boolean {
+        val existing = (m.serverId?.let { getByServerId(it) }) ?: getByClientId(m.clientId)
+        if (existing != null) {
+            if (existing.plainText == null && m.plainText != null && existing.serverId != null) {
+                updatePlainByServerId(
+                    existing.serverId, m.plainText, m.ttlSeconds, m.expiresAtMs,
+                    m.replyToServerId, m.forwarded,
+                )
+            }
+            if (existing.reactionsJson == null && m.reactionsJson != null && existing.serverId != null) {
+                setReactionsJsonByServerId(existing.serverId, m.reactionsJson)
+            }
+            return false
+        }
+        val values = ContentValues().apply {
+            put("server_id", m.serverId)
+            put("client_id", m.clientId)
+            put("conv_id", m.conversationId)
+            put("sender_id", m.senderId)
+            put("kind", m.kind)
+            put("env_body", m.envelopeBody)
+            put("plain_enc", m.plainText?.let { secure.encrypt(it) })
+            put("created_at", m.createdAt)
+            put("status", m.status)
+            put("deleted", if (m.deleted) 1 else 0)
+            put("ttl_seconds", m.ttlSeconds)
+            if (m.expiresAtMs != null) put("expires_at_ms", m.expiresAtMs)
+            put("expired", if (m.expired) 1 else 0)
+            put("edited", if (m.edited) 1 else 0)
+            put("reply_to_server_id", m.replyToServerId)
+            put("forwarded", if (m.forwarded) 1 else 0)
+            put("reactions_enc", m.reactionsJson?.let { secure.encrypt(it) })
+            put("retry_count", m.retryCount)
+            if (m.nextRetryMs != null) put("next_retry_ms", m.nextRetryMs)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+        ) > 0
     }
 
     @Synchronized
@@ -333,6 +464,11 @@ class LocalDb(context: Context, private val secure: SecureStore) :
             expiresAtMs = if (cursor.isNull(expiresIdx)) null else cursor.getLong(expiresIdx),
             expired = cursor.getInt(col("expired")) == 1,
             edited = cursor.getInt(col("edited")) == 1,
+            replyToServerId = cursor.getString(col("reply_to_server_id")),
+            forwarded = cursor.getInt(col("forwarded")) == 1,
+            reactionsJson = secure.decryptOrNull(cursor.getString(col("reactions_enc"))),
+            retryCount = cursor.getInt(col("retry_count")),
+            nextRetryMs = cursor.getLong(col("next_retry_ms")).takeIf { !cursor.isNull(col("next_retry_ms")) },
         )
     }
 
@@ -348,6 +484,8 @@ class LocalDb(context: Context, private val secure: SecureStore) :
             "local_id", "server_id", "client_id", "conv_id", "sender_id",
             "kind", "env_body", "plain_enc", "created_at", "status", "deleted",
             "ttl_seconds", "expires_at_ms", "expired", "edited",
+            "reply_to_server_id", "forwarded", "reactions_enc",
+            "retry_count", "next_retry_ms",
         )
     }
 }

@@ -19,6 +19,8 @@ data class Profile(
     val username: String,
     val displayName: String,
     val e2eIdentityKey: String?,
+    val lastSeenAt: String? = null,
+    val lastSeenPublic: Boolean = true,
 )
 
 data class MemberInfo(
@@ -27,6 +29,8 @@ data class MemberInfo(
     val displayName: String,
     val lastReadAt: String,
     val e2eIdentityKey: String?,
+    val lastSeenAt: String? = null,
+    val lastSeenPublic: Boolean = true,
 )
 
 data class LastMessageInfo(
@@ -36,6 +40,8 @@ data class LastMessageInfo(
     val createdAt: String,
     val deletedAt: String?,
     val kind: String,
+    val replyToId: String? = null,
+    val forwarded: Boolean = false,
 )
 
 data class Conversation(
@@ -59,6 +65,19 @@ data class MessageRow(
     val createdAt: String,
     val editedAt: String?,
     val deletedAt: String?,
+    val replyToId: String? = null,
+    val forwarded: Boolean = false,
+)
+
+data class ReactionRow(
+    val messageId: String,
+    val userId: String,
+    val reaction: String,
+)
+
+data class PresenceInfo(
+    val lastSeenAt: String?,
+    val public: Boolean,
 )
 
 data class SessionTokens(
@@ -189,7 +208,7 @@ class SupabaseApi(private val secure: SecureStore) {
 
     // ---------------------------------------------------------- profiles
     fun fetchProfile(userId: String): Profile? {
-        val path = "/rest/v1/profiles?select=id,username,display_name,e2e_identity_key&id=eq.${enc(userId)}"
+        val path = "/rest/v1/profiles?select=id,username,display_name,e2e_identity_key,last_seen_at,last_seen_public&id=eq.${enc(userId)}"
         val arr = JSONArray(authed("GET", path, null, null))
         if (arr.length() == 0) return null
         return parseProfile(arr.getJSONObject(0))
@@ -217,12 +236,35 @@ class SupabaseApi(private val secure: SecureStore) {
         authed("PATCH", "/rest/v1/profiles?id=eq.${enc(userId)}", body, "return=minimal")
     }
 
-    private fun parseProfile(json: JSONObject): Profile = Profile(
-        id = json.getString("id"),
-        username = json.optString("username"),
-        displayName = json.optString("display_name"),
-        e2eIdentityKey = json.optStringOrNull("e2e_identity_key"),
-    )
+    private fun parseProfile(json: JSONObject): Profile {
+        val public = json.optBoolean("last_seen_public", true)
+        return Profile(
+            id = json.getString("id"),
+            username = json.optString("username"),
+            displayName = json.optString("display_name"),
+            e2eIdentityKey = json.optStringOrNull("e2e_identity_key"),
+            lastSeenAt = if (public) json.optStringOrNull("last_seen_at") else null,
+            lastSeenPublic = public,
+        )
+    }
+
+    /** Best-effort heartbeat: stamp my last-seen time on my profile. */
+    fun touchPresence() {
+        val me = myUserId ?: return
+        val body = JSONObject().put("last_seen_at", Instant.now().toString())
+        authed("PATCH", "/rest/v1/profiles?id=eq.${enc(me)}", body, "return=minimal")
+    }
+
+    fun fetchPresence(userId: String): PresenceInfo {
+        val profile = fetchProfile(userId)
+        return PresenceInfo(profile?.lastSeenAt, profile?.lastSeenPublic ?: true)
+    }
+
+    fun setLastSeenPublic(public: Boolean) {
+        val me = myUserId ?: throw ApiException("وارد نشده‌اید")
+        val body = JSONObject().put("last_seen_public", public)
+        authed("PATCH", "/rest/v1/profiles?id=eq.${enc(me)}", body, "return=minimal")
+    }
 
     // ---------------------------------------------------------- chat RPC / REST
     fun searchUsers(query: String): List<Profile> {
@@ -244,6 +286,8 @@ class SupabaseApi(private val secure: SecureStore) {
                     displayName = m.optString("display_name"),
                     lastReadAt = m.optString("last_read_at"),
                     e2eIdentityKey = m.optStringOrNull("e2e_identity_key"),
+                    lastSeenAt = m.optStringOrNull("last_seen_at"),
+                    lastSeenPublic = m.optBoolean("last_seen_public", true),
                 )
             }
             val last = json.optJSONObjectOrNull("last_message")?.let { lm ->
@@ -254,6 +298,8 @@ class SupabaseApi(private val secure: SecureStore) {
                     createdAt = lm.optString("created_at"),
                     deletedAt = lm.optStringOrNull("deleted_at"),
                     kind = lm.optString("kind", "text"),
+                    replyToId = lm.optStringOrNull("reply_to_id"),
+                    forwarded = lm.optBoolean("forwarded", false),
                 )
             }
             Conversation(
@@ -273,6 +319,19 @@ class SupabaseApi(private val secure: SecureStore) {
         val body = JSONObject().put("p_other", otherUserId)
         val raw = authed("POST", "/rest/v1/rpc/get_or_create_dm", body, null)
         return raw.trim().trim('"')
+    }
+
+    /** Fresh per-member read watermarks (reliable read receipts). */
+    fun fetchMemberReadStates(conversationId: String): Map<String, String> {
+        val path = "/rest/v1/conversation_members?select=user_id,last_read_at" +
+            "&conversation_id=eq.${enc(conversationId)}"
+        val arr = JSONArray(authed("GET", path, null, null))
+        val out = HashMap<String, String>()
+        for (i in 0 until arr.length()) {
+            val json = arr.getJSONObject(i)
+            out[json.getString("user_id")] = json.optString("last_read_at")
+        }
+        return out
     }
 
     fun markRead(conversationId: String) {
@@ -379,6 +438,8 @@ class SupabaseApi(private val secure: SecureStore) {
         bodyText: String,
         kind: String,
         clientId: String,
+        replyToId: String? = null,
+        forwarded: Boolean = false,
     ): MessageRow {
         val body = JSONObject()
             .put("conversation_id", conversationId)
@@ -386,6 +447,8 @@ class SupabaseApi(private val secure: SecureStore) {
             .put("body", bodyText)
             .put("kind", kind)
             .put("client_id", clientId)
+            .put("forwarded", forwarded)
+        if (replyToId != null) body.put("reply_to_id", replyToId)
         val arr = JSONArray(authed("POST", "/rest/v1/messages", body, "return=representation"))
         return parseMessage(arr.getJSONObject(0))
     }
@@ -408,14 +471,84 @@ class SupabaseApi(private val secure: SecureStore) {
         createdAt = json.getString("created_at"),
         editedAt = json.optStringOrNull("edited_at"),
         deletedAt = json.optStringOrNull("deleted_at"),
+        replyToId = json.optStringOrNull("reply_to_id"),
+        forwarded = json.optBoolean("forwarded", false),
     )
+
+    // ---------------------------------------------------------- typing / reactions / reports
+    /** Typing state lives ~6 seconds; clients refresh it while composing. */
+    fun setTyping(conversationId: String, typing: Boolean) {
+        val me = myUserId ?: return
+        val until = Instant.now().plusSeconds(if (typing) 6 else 0)
+        val body = JSONObject()
+            .put("conversation_id", conversationId)
+            .put("user_id", me)
+            .put("typing_until", until.toString())
+            .put("updated_at", Instant.now().toString())
+        authed(
+            "POST", "/rest/v1/typing_status?on_conflict=conversation_id,user_id",
+            body, "resolution=merge-duplicates,return=minimal",
+        )
+    }
+
+    fun fetchTypingUntil(conversationId: String, userId: String): String? {
+        val path = "/rest/v1/typing_status?select=typing_until" +
+            "&conversation_id=eq.${enc(conversationId)}&user_id=eq.${enc(userId)}"
+        val arr = JSONArray(authed("GET", path, null, null))
+        if (arr.length() == 0) return null
+        return arr.getJSONObject(0).optStringOrNull("typing_until")
+    }
+
+    fun fetchReactions(messageIds: List<String>): List<ReactionRow> {
+        if (messageIds.isEmpty()) return emptyList()
+        val ids = messageIds.joinToString(",")
+        val path = "/rest/v1/message_reactions?select=message_id,user_id,reaction&message_id=in.($ids)"
+        val arr = JSONArray(authed("GET", path, null, null))
+        return List(arr.length()) { i ->
+            val json = arr.getJSONObject(i)
+            ReactionRow(json.getString("message_id"), json.getString("user_id"), json.getString("reaction"))
+        }
+    }
+
+    fun upsertReaction(messageId: String, reaction: String) {
+        val me = myUserId ?: throw ApiException("وارد نشده‌اید")
+        val body = JSONObject()
+            .put("message_id", messageId)
+            .put("user_id", me)
+            .put("reaction", reaction)
+            .put("updated_at", Instant.now().toString())
+        authed(
+            "POST", "/rest/v1/message_reactions?on_conflict=message_id,user_id",
+            body, "resolution=merge-duplicates,return=minimal",
+        )
+    }
+
+    fun deleteReaction(messageId: String) {
+        val me = myUserId ?: return
+        authed(
+            "DELETE",
+            "/rest/v1/message_reactions?message_id=eq.${enc(messageId)}&user_id=eq.${enc(me)}",
+            null, "return=minimal",
+        )
+    }
+
+    fun reportUser(reportedId: String, conversationId: String?, messageId: String?, reason: String) {
+        val me = myUserId ?: throw ApiException("وارد نشده‌اید")
+        val body = JSONObject()
+            .put("reporter", me)
+            .put("reported", reportedId)
+            .put("reason", reason)
+        if (conversationId != null) body.put("conversation_id", conversationId)
+        if (messageId != null) body.put("message_id", messageId)
+        authed("POST", "/rest/v1/reports", body, "return=minimal")
+    }
 
     // ---------------------------------------------------------- HTTP plumbing
     private data class HttpResult(val status: Int, val body: String)
 
     private fun authed(method: String, path: String, body: JSONObject?, prefer: String?): String {
         ensureFreshToken()
-        var result = rawRequest(method, path, body?.toString(), session?.accessToken ?: anonKey, prefer)
+        var result = requestWithRetry(method, path, body?.toString(), prefer)
         if (result.status == 401 && refreshSession()) {
             result = rawRequest(method, path, body?.toString(), session?.accessToken ?: anonKey, prefer)
         }
@@ -423,11 +556,33 @@ class SupabaseApi(private val secure: SecureStore) {
         return result.body
     }
 
+    /**
+     * One bounded retry for idempotent GETs on network errors / 5xx. Writes
+     * are never auto-retried here (the outbox owns message retries with
+     * idempotent client ids and user-visible state).
+     */
+    private fun requestWithRetry(method: String, path: String, body: String?, prefer: String?): HttpResult {
+        val token = session?.accessToken ?: anonKey
+        return try {
+            val first = rawRequest(method, path, body, token, prefer)
+            if (method == "GET" && first.status >= 500) {
+                Thread.sleep(400)
+                rawRequest(method, path, body, session?.accessToken ?: anonKey, prefer)
+            } else {
+                first
+            }
+        } catch (e: java.io.IOException) {
+            if (method != "GET") throw e
+            Thread.sleep(400)
+            rawRequest(method, path, body, session?.accessToken ?: anonKey, prefer)
+        }
+    }
+
     private fun rawRequest(method: String, path: String, body: String?, bearer: String, prefer: String?): HttpResult {
         val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = 15_000
-            readTimeout = 20_000
+            connectTimeout = 10_000
+            readTimeout = 15_000
             setRequestProperty("apikey", anonKey)
             setRequestProperty("Authorization", "Bearer $bearer")
             setRequestProperty("Accept", "application/json")
@@ -488,6 +643,8 @@ class SupabaseApi(private val secure: SecureStore) {
             "group_full" in m -> "ظرفیت گروه تکمیل است."
             "not_a_group" in m || "cannot_leave" in m -> "این عملیات برای این گفتگو ممکن نیست."
             "user_not_found" in m -> "کاربر یافت نشد."
+            "report_rate_limited" in m -> "تعداد گزارش‌های شما در این ساعت به سقف رسید؛ بعداً تلاش کنید."
+            "over_request_rate_limit" in m || "too many requests" in m -> "درخواست‌ها زیاد شد؛ چند ثانیه صبر کنید." 
             else -> raw.ifEmpty { "خطای شبکه یا سرور" }
         }
     }
@@ -496,7 +653,7 @@ class SupabaseApi(private val secure: SecureStore) {
 
     private companion object {
         const val KEY_SESSION = "session_v1"
-        const val MESSAGE_COLUMNS = "id,client_id,conversation_id,sender_id,body,kind,created_at,edited_at,deleted_at"
+        const val MESSAGE_COLUMNS = "id,client_id,conversation_id,sender_id,body,kind,created_at,edited_at,deleted_at,reply_to_id,forwarded"
     }
 }
 

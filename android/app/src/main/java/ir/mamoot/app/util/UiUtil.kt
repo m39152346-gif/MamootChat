@@ -1,5 +1,6 @@
 package ir.mamoot.app.util
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -67,6 +68,24 @@ object UiUtil {
     }
 
     fun faNum(n: Int): String = faDigits(n.toString())
+
+    fun isOnline(lastSeenIso: String?): Boolean {
+        val instant = lastSeenIso?.let { parseInstant(it) } ?: return false
+        return Duration.between(instant, Instant.now()).seconds < 90
+    }
+
+    fun presenceText(lastSeenIso: String?, isPublic: Boolean): String {
+        if (!isPublic) return "آخرین بازدید پنهان است"
+        val instant = lastSeenIso?.let { parseInstant(it) } ?: return ""
+        val seconds = Duration.between(instant, Instant.now()).seconds
+        return when {
+            seconds < 90 -> "آنلاین"
+            seconds < 3600 -> "آخرین بازدید ${faNum(maxOf(1, (seconds / 60).toInt()))} دقیقه پیش"
+            seconds < 86_400 -> "آخرین بازدید امروز ساعت ${formatTime(lastSeenIso)}"
+            seconds < 172_800 -> "آخرین بازدید دیروز ساعت ${formatTime(lastSeenIso)}"
+            else -> "آخرین بازدید ${formatListTime(lastSeenIso)}"
+        }
+    }
 
     fun initials(name: String): String {
         val parts = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }

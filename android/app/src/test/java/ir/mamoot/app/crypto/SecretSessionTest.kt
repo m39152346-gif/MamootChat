@@ -169,4 +169,116 @@ class SecretSessionTest {
         assertEquals("متن ویرایش‌شده", revise.text)
         assertTrue(SecretSession.isControl(a.encryptRevise("x", "y")))
     }
+
+    @Test
+    fun replyForwardAndReactionPayloadsStayEncrypted() {
+        val (a, b) = readyPair()
+        val reply = b.decrypt(a.encrypt("پاسخ من", replyToId = "srv-42"))
+        assertEquals("پاسخ من", reply.text)
+        assertEquals("srv-42", reply.replyTargetId)
+        assertFalse(reply.forwarded)
+
+        val forwarded = b.decrypt(a.encrypt("بازارسالی", forwarded = true))
+        assertEquals("بازارسالی", forwarded.text)
+        assertTrue(forwarded.forwarded)
+
+        val timedReply = b.decrypt(a.encrypt("پاسخ موقت", ttlSeconds = 30, replyToId = "srv-7"))
+        assertEquals(30, timedReply.ttlSeconds)
+        assertEquals("srv-7", timedReply.replyTargetId)
+
+        val reactionEnv = a.encryptReaction("srv-42", "❤️")
+        assertTrue(SecretSession.isControl(reactionEnv))
+        val reaction = b.decrypt(reactionEnv)
+        assertEquals("srv-42", reaction.reactTargetId)
+        assertEquals("❤️", reaction.reaction)
+
+        val cleared = b.decrypt(a.encryptReaction("srv-42", ""))
+        assertEquals("srv-42", cleared.reactTargetId)
+        assertEquals("", cleared.reaction)
+    }
+
+    @Test
+    fun stageBindingRejectsRelabeledEnvelope() {
+        val (a, b) = readyPair()
+        val control = a.encryptReaction("srv-1", "👍")
+        assertTrue(control.startsWith("MAM1.c."))
+        val relabeled = "MAM1.m." + control.removePrefix("MAM1.c.")
+        try {
+            b.decrypt(relabeled)
+            fail("an envelope relabeled from control to message stage must fail AEAD")
+        } catch (expected: DecryptException) {
+            // expected: the stage byte is bound into the AAD since v0.4
+        }
+        // The untampered control still decrypts (chain not consumed by failure).
+        assertEquals("👍", b.decrypt(control).reaction)
+    }
+
+    @Test
+    fun oversizedGapIsRejected() {
+        val (a, b) = readyPair()
+        var last = ""
+        repeat(1105) { last = a.encrypt("m$it") }
+        try {
+            b.decrypt(last)
+            fail("a >1000-message gap must be rejected instead of skipping forever")
+        } catch (expected: DecryptException) {
+            // expected
+        }
+    }
+
+    @Test
+    fun skippedKeysAreCappedAndOldestEvicted() {
+        val (a, b) = readyPair()
+        val envelopes = (0 until 300).map { a.encrypt("m$it") }
+        assertEquals("m299", b.decrypt(envelopes[299]).text)
+        // Keys far behind the 250-key cap were evicted.
+        try {
+            b.decrypt(envelopes[0])
+            fail("evicted skipped key must not decrypt")
+        } catch (expected: DecryptException) {
+            // expected
+        }
+        // Keys inside the retained window still work.
+        assertEquals("m200", b.decrypt(envelopes[200]).text)
+    }
+
+    @Test
+    fun decryptingDiscardedMessageStillAdvancesChainOnce() {
+        // The repository decrypts even server-deleted envelopes exactly once
+        // to consume the ratchet step, then discards the content.
+        val (a, b) = readyPair()
+        val env = a.encrypt("حذف‌شده")
+        assertEquals("حذف‌شده", b.decrypt(env).text)
+        try {
+            b.decrypt(env)
+            fail("second decrypt of the same envelope must be rejected as replay")
+        } catch (expected: DecryptException) {
+            // expected
+        }
+        assertEquals("بعدی", b.decrypt(a.encrypt("بعدی")).text)
+    }
+
+    @Test
+    fun pendingKeyExchangeExpires() {
+        val a = SecretSession(aId, bId, convId)
+        val b = SecretSession(bId, aId, convId)
+        val init = a.startExchange(aIdentity.private, 1_000L)
+        val accept = b.handleKxInit(init, aIdentity.public, bIdentity.private, 1_000L)
+        assertNotNull(accept)
+        val afterTtl = 1_000L + 31L * 24 * 3600 * 1000
+        assertFalse("stale pending KX must be dropped", a.handleKxAccept(accept!!, bIdentity.public, afterTtl))
+        assertFalse(a.hasSession())
+    }
+
+    @Test
+    fun rekeyNeededAfter100MessagesOr7Days() {
+        val (a, _) = readyPair()
+        assertFalse(a.needsRekey(2_000L))
+        repeat(100) { a.encrypt("m$it") }
+        assertTrue(a.needsRekey(2_000L))
+
+        val (c, _) = readyPair()
+        val eightDaysLater = 1_000L + 8L * 24 * 3600 * 1000
+        assertTrue(c.needsRekey(eightDaysLater))
+    }
 }

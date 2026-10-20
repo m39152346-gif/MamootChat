@@ -46,6 +46,41 @@ object Crypto {
         return md.digest()
     }
 
+    fun sha512(vararg parts: ByteArray): ByteArray {
+        val md = MessageDigest.getInstance("SHA-512")
+        for (p in parts) md.update(p)
+        return md.digest()
+    }
+
+    /**
+     * PBKDF2-HMAC-SHA256 (RFC 8018), implemented on top of [hmacSha256] so it
+     * behaves identically on Android and the host JVM. Used only to derive
+     * the encrypted-backup key from a user passphrase.
+     */
+    fun pbkdf2Sha256(password: ByteArray, salt: ByteArray, iterations: Int, dkLen: Int): ByteArray {
+        require(iterations > 0 && dkLen > 0) { "bad pbkdf2 params" }
+        require(password.isNotEmpty()) { "empty password" }
+        var out = ByteArray(0)
+        var blockIndex = 1
+        while (out.size < dkLen) {
+            val blockSalt = salt + byteArrayOf(
+                (blockIndex ushr 24).toByte(),
+                (blockIndex ushr 16).toByte(),
+                (blockIndex ushr 8).toByte(),
+                blockIndex.toByte(),
+            )
+            var u = hmacSha256(password, blockSalt)
+            val t = u.copyOf()
+            repeat(iterations - 1) {
+                u = hmacSha256(password, u)
+                for (i in t.indices) t[i] = (t[i].toInt() xor u[i].toInt()).toByte()
+            }
+            out += t
+            blockIndex++
+        }
+        return out.copyOf(dkLen)
+    }
+
     fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(key, "HmacSHA256"))
@@ -133,6 +168,41 @@ object Crypto {
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
         cipher.updateAAD(aad)
         return cipher.doFinal(ciphertext)
+    }
+
+    /**
+     * Signal-style 60-digit safety number for a pair of long-term identities.
+     * Each side contributes a 30-digit fingerprint: SHA-512 iterated 5200
+     * times over (version || identityKey || stableUserId), first 30 bytes
+     * split into six 5-byte big-endian chunks reduced mod 100000. The two
+     * halves are sorted so both phones display the identical number. It
+     * changes iff either identity key changes (not on session re-keys).
+     */
+    fun safetyNumber(
+        myUserId: String,
+        myIdentityPubDer: ByteArray,
+        peerUserId: String,
+        peerIdentityPubDer: ByteArray,
+    ): String {
+        val halves = listOf(
+            identityFingerprintDigits(myUserId, myIdentityPubDer),
+            identityFingerprintDigits(peerUserId, peerIdentityPubDer),
+        ).sorted()
+        return halves.joinToString(" ")
+    }
+
+    private fun identityFingerprintDigits(userId: String, identityPubDer: ByteArray): String {
+        var hash = byteArrayOf(0, 1) + identityPubDer + userId.toByteArray(Charsets.UTF_8)
+        repeat(5200) { hash = sha512(hash + identityPubDer) }
+        val groups = ArrayList<String>(6)
+        for (g in 0 until 6) {
+            var value = 0L
+            for (i in 0 until 5) {
+                value = (value shl 8) or (hash[g * 5 + i].toLong() and 0xFF)
+            }
+            groups.add((value % 100_000).toString().padStart(5, '0'))
+        }
+        return groups.joinToString(" ")
     }
 
     /** Human-comparable safety code, Telegram-style (compare out-of-band). */

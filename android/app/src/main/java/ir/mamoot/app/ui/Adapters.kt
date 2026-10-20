@@ -100,6 +100,8 @@ class MessageAdapter(
     var peerLastReadAt: String = ""
     var isGroup: Boolean = false
     var memberNames: Map<String, String> = emptyMap()
+    var groupMemberIds: List<String> = emptyList()
+    var memberReadAt: Map<String, String> = emptyMap()
 
     fun submit(newItems: List<UiMessage>) {
         items.clear()
@@ -134,6 +136,10 @@ class MessageAdapter(
 
         val bubble = view.findViewById<TextView>(R.id.tvBubble)
         val meta = view.findViewById<TextView>(R.id.tvMeta)
+        val quote = view.findViewById<TextView>(R.id.tvQuote)
+        val reactionsView = view.findViewById<TextView>(R.id.tvReactions)
+        quote.visibility = View.GONE
+        reactionsView.visibility = View.GONE
         val maxWidth = (context.resources.displayMetrics.widthPixels * 0.79).toInt()
         bubble.maxWidth = maxWidth
         meta.visibility = View.VISIBLE
@@ -150,6 +156,21 @@ class MessageAdapter(
         val gravity = if (msg.mine) Gravity.END else Gravity.START
         (bubble.layoutParams as LinearLayout.LayoutParams).gravity = gravity
         (meta.layoutParams as LinearLayout.LayoutParams).gravity = gravity
+        (quote.layoutParams as LinearLayout.LayoutParams).gravity = gravity
+        (reactionsView.layoutParams as LinearLayout.LayoutParams).gravity = gravity
+        quote.maxWidth = maxWidth
+
+        if (msg.replySnippet != null && !msg.deleted && !msg.expired) {
+            quote.visibility = View.VISIBLE
+            quote.text = "↩ " + msg.replySnippet
+        }
+        if (msg.reactions.isNotEmpty() && !msg.deleted && !msg.expired) {
+            val grouped = msg.reactions.values.groupingBy { it }.eachCount()
+            reactionsView.visibility = View.VISIBLE
+            reactionsView.text = grouped.entries.joinToString("  ") { (emoji, count) ->
+                if (count > 1) "$emoji ${UiUtil.faNum(count)}" else emoji
+            }
+        }
 
         when {
             msg.expired -> {
@@ -179,9 +200,16 @@ class MessageAdapter(
             }
         }
 
-        val readInstant = UiUtil.parseInstant(peerLastReadAt)
         val createdInstant = UiUtil.parseInstant(msg.createdAt)
-        val isRead = readInstant != null && createdInstant != null && !readInstant.isBefore(createdInstant)
+        val isRead = if (isGroup) {
+            createdInstant != null && groupMemberIds.isNotEmpty() && groupMemberIds.all { memberId ->
+                val readAt = memberReadAt[memberId]?.let { UiUtil.parseInstant(it) }
+                readAt != null && !readAt.isBefore(createdInstant)
+            }
+        } else {
+            val readInstant = UiUtil.parseInstant(peerLastReadAt)
+            readInstant != null && createdInstant != null && !readInstant.isBefore(createdInstant)
+        }
         val statusSuffix = if (msg.mine && !msg.deleted && !msg.expired) {
             when (msg.status) {
                 LocalDb.STATUS_SENDING -> " · 🕐"
@@ -194,7 +222,8 @@ class MessageAdapter(
         val lockMark = if (msg.encrypted && !msg.deleted && !msg.expired) "🔒 " else ""
         val ttlMark = if (msg.ttlSeconds > 0 && !msg.expired && !msg.deleted) " · ⏱" else ""
         val editedMark = if (msg.edited && !msg.deleted && !msg.expired) " · ویرایش شد" else ""
-        meta.text = lockMark + UiUtil.formatTime(msg.createdAt) + editedMark + ttlMark + statusSuffix
+        val forwardedMark = if (msg.forwarded && !msg.deleted && !msg.expired) " · ↪ بازارسال‌شده" else ""
+        meta.text = lockMark + UiUtil.formatTime(msg.createdAt) + forwardedMark + editedMark + ttlMark + statusSuffix
         return view
     }
 }

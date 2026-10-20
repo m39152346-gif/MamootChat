@@ -46,6 +46,15 @@ class ChatActivity : Activity() {
     private lateinit var btnLoadOlder: Button
     private lateinit var layoutSearch: LinearLayout
     private lateinit var etChatSearch: EditText
+    private lateinit var layoutReply: LinearLayout
+    private lateinit var tvReplyQuote: TextView
+    private var replyTarget: UiMessage? = null
+    private var lastTypingSentMs = 0L
+    private var typingActive = false
+    private var peerTypingNow = false
+    private var peerLastSeenAtStr: String? = null
+    private var peerLastSeenPublicFlag = true
+    private var consecutiveFailures = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private var syncing = false
@@ -87,6 +96,16 @@ class ChatActivity : Activity() {
         btnLoadOlder = findViewById(R.id.btnLoadOlder)
         layoutSearch = findViewById(R.id.layoutSearch)
         etChatSearch = findViewById(R.id.etChatSearch)
+        layoutReply = findViewById(R.id.layoutReply)
+        tvReplyQuote = findViewById(R.id.tvReplyQuote)
+        findViewById<Button>(R.id.btnCancelReply).setOnClickListener { clearReply() }
+        etMessage.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun afterTextChanged(text: Editable?) {
+                maybeSendTyping(text?.isNotEmpty() == true)
+            }
+        })
 
         val avatar = findViewById<TextView>(R.id.tvChatAvatar)
         val peer = conv.members.firstOrNull { it.id != app.api.myUserId }
@@ -105,6 +124,10 @@ class ChatActivity : Activity() {
         lvMessages.setOnItemLongClickListener { _, _, position, _ ->
             showMessageActions(adapter.getItem(position))
             true
+        }
+        lvMessages.setOnItemClickListener { _, _, position, _ ->
+            val msg = adapter.getItem(position)
+            if (msg.replyToServerId != null) jumpToServerMessage(msg.replyToServerId)
         }
 
         findViewById<Button>(R.id.btnBack).setOnClickListener { finish() }
@@ -158,6 +181,7 @@ class ChatActivity : Activity() {
         super.onPause()
         resumed = false
         handler.removeCallbacks(pollRunnable)
+        sendTyping(false)
     }
 
     private fun refreshBlockedState() {
@@ -187,6 +211,9 @@ class ChatActivity : Activity() {
                         if (isFinishing) return@runUi
                         conv = fresh
                         adapter.memberNames = fresh.members.associate { it.id to it.displayName }
+                        adapter.groupMemberIds = fresh.members
+                            .filter { it.id != app.api.myUserId }
+                            .map { it.id }
                         val peer = fresh.members.firstOrNull { it.id != app.api.myUserId }
                         adapter.peerLastReadAt = peer?.lastReadAt ?: ""
                         if (fresh.kind == "dm" && peer != null) {
@@ -213,14 +240,26 @@ class ChatActivity : Activity() {
             syncing = false
             if (!isFinishing) {
                 result.onSuccess { sync ->
+                    consecutiveFailures = 0
                     applyPage(PageResult(sync.messages, sync.hasMore), forceScroll = false)
-                    adapter.peerLastReadAt = sync.peer?.lastReadAt ?: adapter.peerLastReadAt
+                    adapter.memberReadAt = sync.memberLastReadAt
+                    adapter.peerLastReadAt = sync.peer?.let { peer ->
+                        sync.memberLastReadAt[peer.id] ?: peer.lastReadAt
+                    } ?: adapter.peerLastReadAt
+                    peerTypingNow = sync.peerTyping
+                    peerLastSeenAtStr = sync.peerLastSeenAt
+                    peerLastSeenPublicFlag = sync.peerLastSeenPublic
                     updateSessionUi(sync.state, sync.notice)
                     val grew = sync.messages.size != lastMessageCount
                     pollIntervalMs = if (grew) 2_500L else minOf(pollIntervalMs * 3 / 2, 10_000L)
                 }.onFailure {
+                    consecutiveFailures++
                     tvChatStatus.text = "در انتظار اتصال…"
-                    pollIntervalMs = 6_000L
+                    // Exponential backoff with deterministic jitter so a dead
+                    // network cannot drain the battery with fixed fast polls.
+                    val shift = minOf(consecutiveFailures, 4)
+                    pollIntervalMs = minOf(60_000L, 5_000L shl shift) +
+                        (conv.id.hashCode() and 1023)
                 }
             }
             scheduleNextPoll()
@@ -277,14 +316,7 @@ class ChatActivity : Activity() {
         btnTtl.visibility = if (state == SessionUiState.READY) View.VISIBLE else View.GONE
         etMessage.hint = if (state == SessionUiState.READY) "پیام امن بنویسید… 🔒" else "پیام بنویسید…"
 
-        tvChatStatus.text = when (state) {
-            SessionUiState.READY -> "🔒 چت امن فعال — رمزنگاری سرتاسری"
-            SessionUiState.GROUP_PLAIN -> "گروه — بدون رمزنگاری سرتاسری"
-            SessionUiState.WAITING_PEER -> "در انتظار پذیرش چت امن… (فعلاً عادی)"
-            SessionUiState.NO_SESSION -> "گفتگوی عادی"
-            SessionUiState.PEER_NO_KEY -> "گفتگوی عادی — مخاطب اپ را فعال نکرده است"
-            SessionUiState.PEER_KEY_CHANGED -> "⚠️ کلید مخاطب عوض شده است"
-        }
+        refreshStatusLine()
 
         btnBannerAction.setOnClickListener(null)
         when {
@@ -328,14 +360,164 @@ class ChatActivity : Activity() {
         }
     }
 
+    private fun sessionStatusText(): String = when (currentState) {
+        SessionUiState.READY -> "🔒 چت امن فعال — رمزنگاری سرتاسری"
+        SessionUiState.GROUP_PLAIN -> "گروه — بدون رمزنگاری سرتاسری"
+        SessionUiState.WAITING_PEER -> "در انتظار پذیرش چت امن… (فعلاً عادی)"
+        SessionUiState.NO_SESSION -> "گفتگوی عادی"
+        SessionUiState.PEER_NO_KEY -> "گفتگوی عادی — مخاطب اپ را فعال نکرده است"
+        SessionUiState.PEER_KEY_CHANGED -> "⚠️ کلید مخاطب عوض شده است"
+    }
+
+    private fun refreshStatusLine() {
+        val base = sessionStatusText()
+        tvChatStatus.text = when {
+            conv.kind == "group" -> base
+            peerTypingNow -> "در حال نوشتن…" +
+                if (currentState == SessionUiState.READY) " · 🔒" else ""
+            else -> {
+                val presence = UiUtil.presenceText(peerLastSeenAtStr, peerLastSeenPublicFlag)
+                if (presence.isEmpty()) base else "$base · $presence"
+            }
+        }
+    }
+
+    private fun maybeSendTyping(hasText: Boolean) {
+        if (hasText) {
+            if (System.currentTimeMillis() - lastTypingSentMs >= 4_000L) sendTyping(true)
+        } else if (typingActive) {
+            sendTyping(false)
+        }
+    }
+
+    private fun sendTyping(typing: Boolean) {
+        typingActive = typing
+        if (typing) lastTypingSentMs = System.currentTimeMillis()
+        val conversationId = conv.id
+        Threads.runIo {
+            try {
+                app.api.setTyping(conversationId, typing)
+            } catch (e: Exception) {
+                // Typing is best-effort decoration.
+            }
+        }
+    }
+
+    private fun setReplyTarget(msg: UiMessage) {
+        replyTarget = msg
+        layoutReply.visibility = View.VISIBLE
+        val snippet = msg.text?.replace(Regex("\\s+"), " ")?.take(90) ?: ""
+        tvReplyQuote.text = "↩ پاسخ به: $snippet"
+        etMessage.requestFocus()
+    }
+
+    private fun clearReply() {
+        replyTarget = null
+        layoutReply.visibility = View.GONE
+    }
+
+    private fun jumpToServerMessage(serverId: String) {
+        val index = adapter.snapshot().indexOfFirst { it.serverId == serverId }
+        if (index >= 0) {
+            lvMessages.post { lvMessages.setSelection(index) }
+            return
+        }
+        app.repo.allLocalMessages(conv.id) { result ->
+            result.onSuccess { all ->
+                applyMessages(all, forceScroll = false)
+                val target = adapter.snapshot().indexOfFirst { it.serverId == serverId }
+                if (target >= 0) {
+                    lvMessages.post { lvMessages.setSelection(target) }
+                } else {
+                    Toast.makeText(this, "پیام اصلی روی این دستگاه نیست", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun showReactionPicker(msg: UiMessage) {
+        val emojis = listOf("❤️", "👍", "😂", "😮", "😢", "🙏")
+        val labels = (emojis + listOfNotNull(if (msg.myReaction != null) "حذف واکنش من" else null))
+            .toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("واکنش")
+            .setItems(labels) { _, which ->
+                val emoji = if (which < emojis.size) emojis[which] else null
+                app.repo.setReaction(conv, msg, emoji) { result ->
+                    result.onSuccess { applyMessages(it, forceScroll = false) }
+                        .onFailure { e ->
+                            Toast.makeText(this, e.message ?: "ثبت واکنش ناموفق بود", Toast.LENGTH_LONG).show()
+                        }
+                }
+            }
+            .show()
+    }
+
+    private fun showForwardPicker(msg: UiMessage) {
+        app.repo.conversations { result ->
+            result.onSuccess { items ->
+                val targets = items.filter { it.conversation.id != conv.id }
+                if (targets.isEmpty()) {
+                    Toast.makeText(this, "گفتگوی دیگری برای بازارسال ندارید.", Toast.LENGTH_SHORT).show()
+                    return@onSuccess
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("بازارسال به…")
+                    .setItems(targets.map { it.title }.toTypedArray()) { _, which ->
+                        val target = targets[which]
+                        app.repo.forwardMessage(msg, target.conversation) { forward ->
+                            forward.onSuccess {
+                                Toast.makeText(this, "به «${target.title}» بازارسال شد.", Toast.LENGTH_SHORT).show()
+                            }.onFailure { e ->
+                                Toast.makeText(this, e.message ?: "بازارسال ناموفق بود", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    .setNegativeButton("لغو", null)
+                    .show()
+            }.onFailure { e ->
+                Toast.makeText(this, e.message ?: "خطا در بارگذاری گفتگوها", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun showReportDialog(msg: UiMessage) {
+        val reasons = arrayOf("اسپم یا تبلیغات", "آزار و توهین", "محتوای نامناسب", "جعل هویت", "سایر")
+        AlertDialog.Builder(this)
+            .setTitle("گزارش این کاربر")
+            .setItems(reasons) { _, which ->
+                Threads.runIo {
+                    try {
+                        app.api.reportUser(msg.senderId, conv.id, msg.serverId, reasons[which])
+                        Threads.runUi {
+                            if (!isFinishing) {
+                                Toast.makeText(this, "گزارش ثبت شد؛ ممنون از همکاری‌تان.", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Threads.runUi {
+                            if (!isFinishing) {
+                                Toast.makeText(this, e.message ?: "ثبت گزارش ناموفق بود", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("لغو", null)
+            .show()
+    }
+
     private fun sendCurrentText() {
         val text = etMessage.text.toString().trim()
         if (text.isEmpty()) return
         etMessage.text.clear()
+        sendTyping(false)
         pollIntervalMs = 2_500L
         val ttl = if (currentState == SessionUiState.READY) ttlChoiceSeconds else 0
-        app.repo.sendText(conv, text, ttl) { result ->
+        val reply = replyTarget
+        app.repo.sendText(conv, text, ttl, reply) { result ->
             result.onSuccess { messages ->
+                clearReply()
                 applyMessages(messages, forceScroll = true)
             }.onFailure { e ->
                 etMessage.setText(text)
@@ -398,18 +580,37 @@ class ChatActivity : Activity() {
     }
 
     private fun showSecurityDialog() {
-        val code = try {
-            app.repo.safetyCode(conv)
-        } catch (e: Exception) {
-            null
+        Threads.runIo {
+            val code = try {
+                app.repo.safetyCode(conv)
+            } catch (e: Exception) {
+                null
+            }
+            val number = try {
+                app.repo.safetyNumber(conv)
+            } catch (e: Exception) {
+                null
+            }
+            Threads.runUi {
+                if (!isFinishing) showSecurityDialogLoaded(code, number)
+            }
         }
-        val message = if (code != null) {
+    }
+
+    private fun showSecurityDialogLoaded(code: String?, number: String?) {
+        val baseMessage = if (code != null) {
             "این گفتگو در حالت امن است؛ پیام‌های تازه با رمزنگاری سرتاسری ارسال می‌شوند و کلیدها فقط روی گوشی شما و مخاطب‌اند.\n\n" +
                 "کد امنیتی این نشست:\n$code\n\n" +
                 "اگر این کد روی گوشی هر دو نفر یکی باشد، هیچ واسطه‌ای بین شما نیست؛ آن را با صدای بلند یا رو‌در‌رو مقایسه کنید."
         } else {
             "این گفتگو فعلاً عادی است و رمزنگاری سرتاسری ندارد (سرور از نظر فنی می‌تواند پیام‌های عادی را بخواند).\n\n" +
                 "با فعال‌سازی چت امن، هر دو گوشی یک تبادل کلید امضاشده انجام می‌دهند و از آن به بعد پیام‌ها فقط روی دو گوشی خواناست — درست مثل چت مخفی تلگرام."
+        }
+        val message = baseMessage + if (number != null) {
+            "\n\nشماره امنیتی هویت‌ها (Safety Number):\n$number\n\n" +
+                "این عدد ۶۰ رقمی از کلید هویتی هر دو گوشی ساخته می‌شود و تا وقتی هیچ‌کدام اپ را از نو نصب نکرده‌اید ثابت می‌ماند؛ برای اطمینان کامل، آن را رو‌در‌رو یا در یک تماس صوتی مقایسه کنید."
+        } else {
+            ""
         }
         val builder = AlertDialog.Builder(this)
             .setTitle("امنیت گفتگو 🔒")
@@ -450,8 +651,13 @@ class ChatActivity : Activity() {
                 val name = profile?.displayName ?: peer.displayName
                 val username = profile?.username ?: peer.username
                 val hasKey = (profile?.e2eIdentityKey ?: peer.e2eIdentityKey) != null
+                val presence = UiUtil.presenceText(
+                    profile?.lastSeenAt ?: peer.lastSeenAt,
+                    profile?.lastSeenPublic ?: peer.lastSeenPublic,
+                )
                 val text = buildString {
                     append("$name\n@$username\n\n")
+                    if (presence.isNotEmpty()) append("$presence\n")
                     append(if (hasKey) "🔒 این کاربر از چت امن مموت پشتیبانی می‌کند.\n" else "این کاربر هنوز اپ اندروید مموت را فعال نکرده است.\n")
                     append(if (blocked) "\n🚫 شما این کاربر را مسدود کرده‌اید." else "")
                 }
@@ -675,6 +881,11 @@ class ChatActivity : Activity() {
         if (msg.system) return
         val options = mutableListOf<String>()
         if (msg.status == "failed") options.add("تلاش دوباره")
+        val interactive = !msg.deleted && !msg.expired && msg.serverId != null
+        if (interactive && msg.text != null) options.add("↩ پاسخ")
+        if (interactive && (!msg.encrypted || currentState == SessionUiState.READY)) options.add("واکنش ❤")
+        if (!msg.deleted && !msg.expired && !msg.text.isNullOrEmpty()) options.add("↪ بازارسال")
+        if (!msg.mine && msg.senderId.isNotEmpty()) options.add("گزارش کاربر 🚩")
         if (msg.mine && !msg.deleted && !msg.expired && msg.serverId != null &&
             (!msg.encrypted || currentState == SessionUiState.READY)
         ) {
@@ -688,6 +899,10 @@ class ChatActivity : Activity() {
         AlertDialog.Builder(this)
             .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
+                    "↩ پاسخ" -> setReplyTarget(msg)
+                    "واکنش ❤" -> showReactionPicker(msg)
+                    "↪ بازارسال" -> showForwardPicker(msg)
+                    "گزارش کاربر 🚩" -> showReportDialog(msg)
                     "کپی متن" -> {
                         val clipboard = getSystemService(ClipboardManager::class.java)
                         clipboard?.setPrimaryClip(ClipData.newPlainText("mamoot", msg.text ?: ""))

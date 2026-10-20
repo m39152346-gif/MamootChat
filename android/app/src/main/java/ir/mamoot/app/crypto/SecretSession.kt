@@ -46,7 +46,15 @@ class SecretSession(
         var createdAtMs: Long = 0,
         var sentCount: Int = 0,
         val skipped: MutableMap<Long, ByteArray> = mutableMapOf(),
-    )
+    ) {
+        /** Best-effort erasure of key material (JVM copies may still exist). */
+        fun wipeKeys() {
+            sendChain.fill(0)
+            recvChain.fill(0)
+            skipped.values.forEach { it.fill(0) }
+            skipped.clear()
+        }
+    }
 
     class Pending(
         val exchangeId: String,
@@ -70,6 +78,10 @@ class SecretSession(
         val ttlSeconds: Int = 0,
         val endOfSecret: Boolean = false,
         val reviseTargetId: String? = null,
+        val replyTargetId: String? = null,
+        val forwarded: Boolean = false,
+        val reactTargetId: String? = null,
+        val reaction: String? = null,
     )
 
     var current: Epoch? = null
@@ -91,6 +103,9 @@ class SecretSession(
     }
 
     fun reset() {
+        current?.wipeKeys()
+        future?.wipeKeys()
+        previous.forEach { it.wipeKeys() }
         current = null
         future = null
         previous.clear()
@@ -133,7 +148,14 @@ class SecretSession(
         val myEphemeral = Crypto.generateEcKeyPair()
         val authSecret = Crypto.ecdh(myEphemeral.private, peerEphemeral)
         val epoch = deriveEpoch(authSecret, nowMs)
-        if (current == null) current = epoch else future = epoch
+        if (current == null) {
+            current = epoch
+        } else {
+            // Never drop an existing future epoch silently: the peer may
+            // already have sent messages under it (crossed re-keys).
+            future?.let { addPrevious(it) }
+            future = epoch
+        }
 
         val myPubB64 = Crypto.publicKeyToB64(myEphemeral.public)
         val signature = Crypto.sign(myIdentityPrivate, kxSignData(myUserId, kx.exchangeId, myPubB64))
@@ -144,6 +166,10 @@ class SecretSession(
         val kx = parseKx(body) ?: return false
         if (kx.stage != "k2") return false
         val myPending = pending ?: return false
+        if (nowMs - myPending.createdAtMs > PENDING_TTL_MS) {
+            pending = null // abandoned exchange; a fresh start is required
+            return false
+        }
         if (!myPending.initiator || myPending.exchangeId != kx.exchangeId) return false
         val ok = Crypto.verify(
             peerIdentityPublic,
@@ -159,6 +185,7 @@ class SecretSession(
         val myPrivate = Crypto.privateKeyFromBytes(myPending.ephemeralPrivatePkcs8)
         val epoch = deriveEpoch(Crypto.ecdh(myPrivate, peerEphemeral), nowMs)
         current?.let { addPrevious(it) }
+        future?.let { addPrevious(it) }
         current = epoch
         future = null
         pending = null
@@ -166,8 +193,11 @@ class SecretSession(
     }
 
     private fun addPrevious(epoch: Epoch) {
+        if (previous.any { it.fingerprint == epoch.fingerprint }) return
         previous.add(0, epoch)
-        while (previous.size > MAX_PREVIOUS) previous.removeAt(previous.size - 1)
+        while (previous.size > MAX_PREVIOUS) {
+            previous.removeAt(previous.size - 1).wipeKeys()
+        }
     }
 
     private fun promoteFuture() {
@@ -199,14 +229,28 @@ class SecretSession(
     }
 
     // ---------------------------------------------------------- messages
-    fun encrypt(plaintext: String, ttlSeconds: Int = 0): String {
-        val payload = if (ttlSeconds > 0) {
-            byteArrayOf(0x44) + "$ttlSeconds\n$plaintext".toByteArray(Charsets.UTF_8) // 'D' = timed
-        } else {
-            byteArrayOf(0x54) + plaintext.toByteArray(Charsets.UTF_8) // 'T' = text
+    fun encrypt(
+        plaintext: String,
+        ttlSeconds: Int = 0,
+        replyToId: String? = null,
+        forwarded: Boolean = false,
+    ): String {
+        val payload = when {
+            replyToId != null ->
+                byteArrayOf(0x51) + "$replyToId|$ttlSeconds\n$plaintext".toByteArray(Charsets.UTF_8) // 'Q' = quote/reply
+            forwarded ->
+                byteArrayOf(0x46) + "$ttlSeconds\n$plaintext".toByteArray(Charsets.UTF_8) // 'F' = forwarded
+            ttlSeconds > 0 ->
+                byteArrayOf(0x44) + "$ttlSeconds\n$plaintext".toByteArray(Charsets.UTF_8) // 'D' = timed
+            else ->
+                byteArrayOf(0x54) + plaintext.toByteArray(Charsets.UTF_8) // 'T' = text
         }
         return encryptPayload(payload, 'm')
     }
+
+    /** Control: set/replace my reaction on an earlier message ("" removes it). */
+    fun encryptReaction(targetServerId: String, emoji: String): String =
+        encryptPayload(byteArrayOf(0x41) + "$targetServerId\n$emoji".toByteArray(Charsets.UTF_8), 'c') // 'A' = react
 
     /** Control: "end this secret session" (both sides fall back to plain chat). */
     fun encryptControlEnd(): String = encryptPayload(byteArrayOf(0x58), 'c') // 'X'
@@ -221,10 +265,13 @@ class SecretSession(
         val messageKey = Crypto.hmacSha256(epoch.sendChain, byteArrayOf(1))
         val nextChain = Crypto.hmacSha256(epoch.sendChain, byteArrayOf(2))
         val nonce = Crypto.randomBytes(12)
-        val ciphertext = Crypto.aesGcmEncrypt(messageKey, nonce, payload, aad(myUserId, epoch.fingerprint, seq))
+        val ciphertext = Crypto.aesGcmEncrypt(messageKey, nonce, payload, aad(stage, myUserId, epoch.fingerprint, seq))
         val envelope = "MAM1.$stage.${epoch.fingerprint}.$seq.${Crypto.b64(nonce)}.${Crypto.b64(ciphertext)}"
         if (envelope.length > MAX_ENVELOPE_CHARS) throw MessageTooLongException()
+        val oldChain = epoch.sendChain
         epoch.sendChain = nextChain
+        oldChain.fill(0)
+        messageKey.fill(0)
         epoch.sendSeq = seq + 1
         epoch.sentCount += 1
         return envelope
@@ -245,12 +292,14 @@ class SecretSession(
 
         val nonce = Crypto.unb64(msg.nonceB64)
         val ciphertext = Crypto.unb64(msg.ciphertextB64)
-        val aad = aad(peerUserId, msg.fingerprint, msg.seq)
+        val stage = if (msg.control) 'c' else 'm'
+        val aad = aad(stage, peerUserId, msg.fingerprint, msg.seq)
+        val legacyAad = legacyAad(peerUserId, msg.fingerprint, msg.seq)
 
         if (msg.seq < epoch.recvNext) {
             val skippedKey = epoch.skipped[msg.seq] ?: throw DecryptException("replayed sequence")
-            val plain = tryDecrypt(skippedKey, nonce, ciphertext, aad)
-            epoch.skipped.remove(msg.seq)
+            val plain = tryDecrypt(skippedKey, nonce, ciphertext, aad, legacyAad)
+            epoch.skipped.remove(msg.seq)?.fill(0)
             if (promoteAfterSuccess) promoteFuture()
             return plain
         }
@@ -268,21 +317,43 @@ class SecretSession(
         }
         val messageKey = Crypto.hmacSha256(chain, byteArrayOf(1))
         val nextChain = Crypto.hmacSha256(chain, byteArrayOf(2))
-        val plain = tryDecrypt(messageKey, nonce, ciphertext, aad)
+        val plain = tryDecrypt(messageKey, nonce, ciphertext, aad, legacyAad)
 
         // Commit ratchet state only after successful authentication.
         if (promoteAfterSuccess) promoteFuture()
         epoch.skipped.putAll(newSkipped)
+        // Bound stored skipped keys (memory DoS via sparse sequences):
+        // evict the oldest sequence numbers beyond the cap.
+        while (epoch.skipped.size > MAX_SKIPPED_KEYS) {
+            val oldest = epoch.skipped.keys.minOrNull() ?: break
+            epoch.skipped.remove(oldest)?.fill(0)
+        }
+        val oldRecvChain = epoch.recvChain
         epoch.recvChain = nextChain
+        if (oldRecvChain !== nextChain) oldRecvChain.fill(0)
         epoch.recvNext = msg.seq + 1
         return plain
     }
 
-    private fun tryDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): Plain {
+    private fun tryDecrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        ciphertext: ByteArray,
+        aad: ByteArray,
+        legacyAad: ByteArray,
+    ): Plain {
+        // Current envelopes bind the stage ('m'/'c') into the AEAD AAD, so a
+        // relay flipping a message<->control stage is detected. Envelopes
+        // produced before v0.4 used the legacy AAD without the stage; accept
+        // them read-only for in-flight compatibility.
         val raw = try {
             Crypto.aesGcmDecrypt(key, nonce, ciphertext, aad)
         } catch (e: Exception) {
-            throw DecryptException("authentication failed")
+            try {
+                Crypto.aesGcmDecrypt(key, nonce, ciphertext, legacyAad)
+            } catch (e2: Exception) {
+                throw DecryptException("authentication failed")
+            }
         }
         if (raw.isEmpty()) throw DecryptException("bad payload")
         val rest = String(raw, 1, raw.size - 1, Charsets.UTF_8)
@@ -300,11 +371,37 @@ class SecretSession(
                 if (nl <= 0) throw DecryptException("bad revise payload")
                 Plain(rest.substring(nl + 1), reviseTargetId = rest.substring(0, nl))
             }
+            0x51.toByte() -> { // 'Q' reply: "<targetServerId>|<ttlSeconds>\n<text>"
+                val nl = rest.indexOf('\n')
+                if (nl <= 0) throw DecryptException("bad reply payload")
+                val head = rest.substring(0, nl).split("|")
+                if (head.isEmpty() || head[0].isEmpty()) throw DecryptException("bad reply target")
+                Plain(
+                    rest.substring(nl + 1),
+                    ttlSeconds = head.getOrNull(1)?.toIntOrNull() ?: 0,
+                    replyTargetId = head[0],
+                )
+            }
+            0x46.toByte() -> { // 'F' forwarded: "<ttlSeconds>\n<text>"
+                val nl = rest.indexOf('\n')
+                if (nl <= 0) throw DecryptException("bad forward payload")
+                val ttl = rest.substring(0, nl).toIntOrNull() ?: throw DecryptException("bad ttl")
+                Plain(rest.substring(nl + 1), ttlSeconds = ttl, forwarded = true)
+            }
+            0x41.toByte() -> { // 'A' reaction: "<targetServerId>\n<emoji or empty>"
+                val nl = rest.indexOf('\n')
+                if (nl <= 0) throw DecryptException("bad reaction payload")
+                Plain("", reactTargetId = rest.substring(0, nl), reaction = rest.substring(nl + 1))
+            }
             else -> throw DecryptException("bad payload")
         }
     }
 
-    private fun aad(senderUserId: String, fingerprint: String, seq: Long): ByteArray =
+    private fun aad(stage: Char, senderUserId: String, fingerprint: String, seq: Long): ByteArray =
+        "MAM1|$stage|$conversationId|$senderUserId|$fingerprint|$seq".toByteArray(Charsets.UTF_8)
+
+    /** Pre-v0.4 AAD (no stage). Decrypt-only fallback, never used to encrypt. */
+    private fun legacyAad(senderUserId: String, fingerprint: String, seq: Long): ByteArray =
         "MAM1|$conversationId|$senderUserId|$fingerprint|$seq".toByteArray(Charsets.UTF_8)
 
     // ---------------------------------------------------------- serialization
@@ -343,7 +440,9 @@ class SecretSession(
         const val REKEY_AFTER_MESSAGES = 100
         const val REKEY_AFTER_MS = 7L * 24 * 60 * 60 * 1000
         const val MAX_SKIPPED_GAP = 100L
+        const val MAX_SKIPPED_KEYS = 250
         const val MAX_PREVIOUS = 2
+        const val PENDING_TTL_MS = 30L * 24 * 60 * 60 * 1000
         const val MAX_ENVELOPE_CHARS = 3900
         const val MAX_PLAINTEXT_CHARS = 1500
 

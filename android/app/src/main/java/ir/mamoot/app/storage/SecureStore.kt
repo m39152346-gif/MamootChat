@@ -39,6 +39,24 @@ class SecureStore(context: Context) {
         prefs.edit().remove(key).apply()
     }
 
+    /**
+     * Synchronous write for crash-critical values (session ratchet state,
+     * identity keys): `apply()` may lose the newest value if the process is
+     * killed before the async disk flush, which could roll the ratchet back.
+     */
+    fun putSecretCommit(key: String, value: String) {
+        prefs.edit().putString(key, encrypt(value)).commit()
+    }
+
+    fun keysWithPrefixes(prefixes: List<String>): List<String> =
+        prefs.all.keys.filter { key -> prefixes.any { key.startsWith(it) } }.sorted()
+
+    fun removeWithPrefixes(prefixes: List<String>) {
+        val editor = prefs.edit()
+        for (key in keysWithPrefixes(prefixes)) editor.remove(key)
+        editor.commit()
+    }
+
     fun clearAll() {
         prefs.edit().clear().apply()
     }

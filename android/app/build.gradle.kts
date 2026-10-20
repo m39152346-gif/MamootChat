@@ -16,8 +16,8 @@ android {
         applicationId = "ir.mamoot.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.2"
+        versionCode = 7
+        versionName = "0.4.0"
 
         // Supabase publishable key: public by design (all access is enforced by RLS).
         buildConfigField("String", "SUPABASE_URL", "\"https://eslatwgowmovfkkddcnp.supabase.co\"")

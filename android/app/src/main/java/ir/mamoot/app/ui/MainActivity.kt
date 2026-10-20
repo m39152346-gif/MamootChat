@@ -25,12 +25,14 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var errorShown = false
     private var refreshing = false
+    private var resumed = false
+    private var pollFailures = 0
+    private var pollDelayMs = POLL_MS
     private var pendingOpenConvId: String? = null
 
     private val pollRunnable = object : Runnable {
         override fun run() {
             refresh()
-            handler.postDelayed(this, POLL_MS)
         }
     }
 
@@ -73,15 +75,23 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (app.api.session == null) return
+        resumed = true
+        pollFailures = 0
+        pollDelayMs = POLL_MS
         getSystemService(android.app.NotificationManager::class.java)?.cancel(MamootApp.NOTIFICATION_ID)
         refresh()
-        handler.removeCallbacks(pollRunnable)
-        handler.postDelayed(pollRunnable, POLL_MS)
     }
 
     override fun onPause() {
         super.onPause()
+        resumed = false
         handler.removeCallbacks(pollRunnable)
+    }
+
+    private fun scheduleNextPoll() {
+        if (!resumed) return
+        handler.removeCallbacks(pollRunnable)
+        handler.postDelayed(pollRunnable, pollDelayMs)
     }
 
     private fun refresh() {
@@ -90,6 +100,8 @@ class MainActivity : Activity() {
         app.repo.conversations { result ->
             refreshing = false
             result.onSuccess { items ->
+                pollFailures = 0
+                pollDelayMs = POLL_MS
                 adapter.submit(items)
                 // Re-baseline the background notifier so it only fires for
                 // messages that arrive after this visit.
@@ -105,6 +117,8 @@ class MainActivity : Activity() {
                 lvConversations.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
                 errorShown = false
             }.onFailure { e ->
+                pollFailures++
+                pollDelayMs = minOf(60_000L, POLL_MS shl minOf(pollFailures, 3))
                 if (!errorShown) {
                     errorShown = true
                     Toast.makeText(this, e.message ?: "خطا در دریافت گفتگوها", Toast.LENGTH_SHORT).show()
@@ -114,6 +128,7 @@ class MainActivity : Activity() {
                     lvConversations.visibility = View.GONE
                 }
             }
+            scheduleNextPoll()
         }
     }
 

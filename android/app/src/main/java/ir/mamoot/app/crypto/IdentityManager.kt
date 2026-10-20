@@ -34,8 +34,8 @@ class IdentityManager(private val secure: SecureStore) {
             }
         }
         val pair = Crypto.generateEcKeyPair()
-        secure.putSecret(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
-        secure.putSecret(KEY_PUB, Crypto.publicKeyToB64(pair.public))
+        secure.putSecretCommit(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
+        secure.putSecretCommit(KEY_PUB, Crypto.publicKeyToB64(pair.public))
         cached = pair
         return pair
     }
@@ -56,6 +56,23 @@ class IdentityManager(private val secure: SecureStore) {
 
     fun wipe() {
         cached = null
+    }
+
+    /** Generates a brand-new identity keypair (deliberate key rotation). */
+    @Synchronized
+    fun rotateIdentity(): KeyPair {
+        val pair = Crypto.generateEcKeyPair()
+        secure.putSecretCommit(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
+        secure.putSecretCommit(KEY_PUB, Crypto.publicKeyToB64(pair.public))
+        cached = pair
+        return pair
+    }
+
+    /** Re-reads the identity from the vault (e.g. after a backup restore). */
+    @Synchronized
+    fun reloadIdentity() {
+        cached = null
+        ensureIdentity()
     }
 
     private companion object {

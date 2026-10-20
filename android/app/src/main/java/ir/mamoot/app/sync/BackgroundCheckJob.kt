@@ -82,7 +82,7 @@ class BackgroundCheckJob : JobService() {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
             if (scheduler.allPendingJobs.any { it.id == JOB_ID }) return
             val job = JobInfo.Builder(JOB_ID, ComponentName(context, BackgroundCheckJob::class.java))
-                .setPeriodic(TimeUnit.MINUTES.toMillis(15))
+                .setPeriodic(TimeUnit.MINUTES.toMillis(15), TimeUnit.MINUTES.toMillis(5))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setPersisted(true)
                 .build()

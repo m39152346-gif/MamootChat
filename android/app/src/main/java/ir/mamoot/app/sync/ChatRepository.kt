@@ -1,8 +1,10 @@
 package ir.mamoot.app.sync
 
 import ir.mamoot.app.Threads
+import ir.mamoot.app.crypto.BackupException
 import ir.mamoot.app.crypto.Crypto
 import ir.mamoot.app.crypto.DecryptException
+import ir.mamoot.app.crypto.SecureBackup
 import ir.mamoot.app.crypto.IdentityManager
 import ir.mamoot.app.crypto.SecretSession
 import ir.mamoot.app.net.ApiException
@@ -15,9 +17,11 @@ import ir.mamoot.app.storage.LocalDb
 import ir.mamoot.app.storage.LocalMessage
 import ir.mamoot.app.storage.SecureStore
 import ir.mamoot.app.util.UiUtil
+import java.io.IOException
 import java.security.PublicKey
 import java.time.Instant
 import java.util.UUID
+import org.json.JSONObject
 
 enum class SessionUiState { READY, NO_SESSION, WAITING_PEER, PEER_NO_KEY, PEER_KEY_CHANGED, GROUP_PLAIN }
 
@@ -36,6 +40,11 @@ data class UiMessage(
     val expired: Boolean = false,
     val edited: Boolean = false,
     val system: Boolean = false,
+    val replyToServerId: String? = null,
+    val replySnippet: String? = null,
+    val forwarded: Boolean = false,
+    val reactions: Map<String, String> = emptyMap(),
+    val myReaction: String? = null,
 )
 
 data class UiConversation(
@@ -51,6 +60,10 @@ data class SyncResult(
     val peer: MemberInfo?,
     val notice: String?,
     val hasMore: Boolean = false,
+    val peerTyping: Boolean = false,
+    val peerLastSeenAt: String? = null,
+    val peerLastSeenPublic: Boolean = true,
+    val memberLastReadAt: Map<String, String> = emptyMap(),
 )
 
 data class PageResult(
@@ -77,6 +90,9 @@ class ChatRepository(
     private val sessionLock = Any()
     private val sessionCache = mutableMapOf<String, SecretSession>()
     private val profileCache = mutableMapOf<String, Pair<Profile, Long>>()
+
+    @Volatile
+    private var lastPresenceTouchMs = 0L
 
     private val myId: String
         get() = api.myUserId ?: throw ApiException("وارد نشده‌اید")
@@ -138,7 +154,9 @@ class ChatRepository(
             if (q.isEmpty()) {
                 emptyList()
             } else {
-                db.listVisible(conversationId)
+                // Bound the scan (plaintext is encrypted at rest, so search
+                // must decrypt rows; 1000 recent messages is the budget).
+                db.listVisibleLatest(conversationId, 1000)
                     .filter { !it.deleted && it.plainText?.contains(q, ignoreCase = true) == true }
                     .map(::toUi)
             }
@@ -223,13 +241,30 @@ class ChatRepository(
         }
     }
 
-    fun sendText(conv: Conversation, rawText: String, ttlSeconds: Int, callback: (Result<List<UiMessage>>) -> Unit) {
-        ioCall(callback) {
+    fun sendText(
+        conv: Conversation,
+        rawText: String,
+        ttlSeconds: Int,
+        replyTo: UiMessage? = null,
+        forwarded: Boolean = false,
+        callback: (Result<List<UiMessage>>) -> Unit,
+    ) {
+        ioCall(callback) { sendTextSync(conv, rawText, ttlSeconds, replyTo, forwarded) }
+    }
+
+    private fun sendTextSync(
+        conv: Conversation,
+        rawText: String,
+        ttlSeconds: Int,
+        replyTo: UiMessage?,
+        forwarded: Boolean,
+    ): List<UiMessage> {
             val text = rawText.trim()
             if (text.isEmpty()) throw ApiException("پیام خالی است")
+            val replyToServerId = replyTo?.serverId
             if (conv.kind == "group") {
                 if (text.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است (حداکثر $MAX_PLAIN_CHARS نویسه).")
-                sendPlain(conv.id, text)
+                sendPlain(conv.id, text, replyToServerId, forwarded)
             } else {
                 val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
                 val session = loadSession(conv.id, peer.id)
@@ -237,7 +272,7 @@ class ChatRepository(
                 if (!secretActive) {
                     // Normal (non-secret) DM message.
                     if (text.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است (حداکثر $MAX_PLAIN_CHARS نویسه).")
-                    sendPlain(conv.id, text)
+                    sendPlain(conv.id, text, replyToServerId, forwarded)
                 } else {
                     if (text.length > SecretSession.MAX_PLAINTEXT_CHARS) {
                         throw ApiException("پیام بیش از حد طولانی است (حداکثر ${SecretSession.MAX_PLAINTEXT_CHARS} نویسه در چت امن).")
@@ -247,7 +282,7 @@ class ChatRepository(
                         if (session.needsRekey(System.currentTimeMillis())) {
                             rekeyEnvelope = session.startExchange(identity.privateKey(), System.currentTimeMillis())
                         }
-                        val env = session.encrypt(text, ttlSeconds)
+                        val env = session.encrypt(text, ttlSeconds, replyToServerId, forwarded)
                         saveSession(session)
                         env
                     }
@@ -259,10 +294,55 @@ class ChatRepository(
                         plainText = text, createdAt = Instant.now().toString(),
                         status = LocalDb.STATUS_SENDING, deleted = false,
                         ttlSeconds = ttlSeconds,
+                        replyToServerId = replyToServerId, forwarded = forwarded,
                     )
-                    postOrMarkFailed(conv.id, envelope, "e2ee", clientId, localId)
+                    db.getByLocalId(localId)?.let { postVisible(it) }
                 }
             }
+            return db.listVisibleLatest(conv.id, PAGE_SIZE).map(::toUi)
+    }
+
+    fun forwardMessage(source: UiMessage, target: Conversation, callback: (Result<Unit>) -> Unit) {
+        ioCall(callback) {
+            val text = source.text?.takeIf { it.isNotEmpty() }
+                ?: throw ApiException("متن پیام در دسترس نیست")
+            if (source.encrypted) {
+                if (target.kind == "group") {
+                    throw ApiException("بازارسال پیام امن به گروه ممکن نیست.")
+                }
+                val peer = peerOf(target) ?: throw ApiException("مخاطب مقصد یافت نشد")
+                val session = loadSession(target.id, peer.id)
+                val active = synchronized(sessionLock) { session.hasSession() }
+                if (!active) {
+                    throw ApiException("برای بازارسال پیام امن، در گفتگوی مقصد باید چت امن فعال باشد.")
+                }
+            }
+            sendTextSync(target, text, 0, null, forwarded = true)
+            Unit
+        }
+    }
+
+    fun setReaction(conv: Conversation, msg: UiMessage, emoji: String?, callback: (Result<List<UiMessage>>) -> Unit) {
+        ioCall(callback) {
+            val serverId = msg.serverId ?: throw ApiException("پیام هنوز ارسال نشده است")
+            if (msg.encrypted) {
+                // Secret-chat reactions stay inside the E2EE layer (control
+                // envelope) so the server learns no reaction metadata.
+                val peer = peerOf(conv) ?: throw ApiException("مخاطب یافت نشد")
+                val session = loadSession(conv.id, peer.id)
+                val envelope = synchronized(sessionLock) {
+                    if (!session.hasSession()) throw ApiException("نشست امن فعال نیست.")
+                    val env = session.encryptReaction(serverId, emoji ?: "")
+                    saveSession(session)
+                    env
+                }
+                if (!queueHiddenEnvelope(conv.id, envelope, UUID.randomUUID().toString())) {
+                    throw ApiException("ارسال واکنش ناموفق بود؛ اتصال را بررسی کنید.")
+                }
+            } else {
+                if (emoji == null) api.deleteReaction(serverId) else api.upsertReaction(serverId, emoji)
+            }
+            applyReactionLocal(serverId, myId, emoji ?: "")
             db.listVisibleLatest(conv.id, PAGE_SIZE).map(::toUi)
         }
     }
@@ -300,9 +380,9 @@ class ChatRepository(
     fun retryMessage(localId: Long, callback: (Result<List<UiMessage>>) -> Unit) {
         ioCall(callback) {
             val local = db.getByLocalId(localId) ?: throw ApiException("پیام یافت نشد")
-            val body = local.envelopeBody ?: throw ApiException("متن پیام در دسترس نیست")
+            if (local.envelopeBody == null) throw ApiException("متن پیام در دسترس نیست")
             db.setStatusByLocalId(localId, LocalDb.STATUS_SENDING)
-            postOrMarkFailed(local.conversationId, body, local.kind, local.clientId, localId)
+            postVisible(local.copy(retryCount = 0))
             db.listVisibleLatest(local.conversationId, PAGE_SIZE).map(::toUi)
         }
     }
@@ -328,6 +408,217 @@ class ChatRepository(
         return Crypto.safetyCode(identity.publicKey().encoded, Crypto.unb64(peerKeyB64), fingerprint)
     }
 
+    /**
+     * Stable 60-digit safety number for this peer (Signal-style). CPU-bound
+     * (5200x2 SHA-512); call from a background thread.
+     */
+    fun safetyNumber(conv: Conversation): String? {
+        val peer = peerOf(conv) ?: return null
+        val peerKeyB64 = identity.peerPin(peer.id) ?: peer.e2eIdentityKey ?: return null
+        return try {
+            Crypto.safetyNumber(myId, identity.publicKey().encoded, peer.id, Crypto.unb64(peerKeyB64))
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun createEncryptedBackup(passphrase: String, callback: (Result<String>) -> Unit) {
+        ioCall(callback) {
+            if (passphrase.length < 8) {
+                throw ApiException("گذرواژه پشتیبان باید حداقل ۸ نویسه باشد.")
+            }
+            SecureBackup.encrypt(buildBackupPayload(), passphrase)
+        }
+    }
+
+    fun restoreEncryptedBackup(blob: String, passphrase: String, callback: (Result<Int>) -> Unit) {
+        ioCall(callback) {
+            val payload = try {
+                SecureBackup.decrypt(blob, passphrase)
+            } catch (e: BackupException) {
+                throw ApiException("گذرواژه پشتیبان اشتباه است یا فایل پشتیبان خراب شده است.")
+            }
+            applyBackupPayload(payload)
+        }
+    }
+
+    /** Human-readable data export (account info + readable local history). */
+    fun exportMyData(callback: (Result<String>) -> Unit) {
+        ioCall(callback) {
+            val me = api.fetchProfile(myId)
+            val sb = StringBuilder()
+            sb.append("خروجی داده‌های مموت\n")
+            sb.append("تاریخ: ").append(Instant.now()).append("\n")
+            sb.append("شناسه کاربر: ").append(myId).append("\n")
+            sb.append("نام کاربری: ").append(me?.username ?: "").append("\n")
+            sb.append("نام نمایشی: ").append(me?.displayName ?: "").append("\n\n")
+            val visible = db.listAllForBackup().filter {
+                it.status != LocalDb.STATUS_KX && it.status != LocalDb.STATUS_KX_PENDING &&
+                    it.status != LocalDb.STATUS_HIDDEN && it.plainText != null && !it.deleted
+            }
+            for ((convId, rows) in visible.groupBy { it.conversationId }) {
+                sb.append("== گفتگو ").append(convId).append(" ==\n")
+                for (row in rows) {
+                    val who = when {
+                        row.senderId.isEmpty() -> "سیستم"
+                        row.senderId == myId -> "من"
+                        else -> row.senderId
+                    }
+                    sb.append("[").append(row.createdAt).append("] ").append(who).append(": ")
+                        .append(row.plainText).append("\n")
+                }
+                sb.append("\n")
+            }
+            sb.toString()
+        }
+    }
+
+    /** Ends every active secret session (best-effort control notice to peers). */
+    fun revokeAllSecretSessions(callback: (Result<Int>) -> Unit) {
+        ioCall(callback) {
+            var count = 0
+            for (key in secure.keysWithPrefixes(listOf("session:"))) {
+                val blob = secure.getSecret(key) ?: continue
+                val session = try {
+                    SecretSession.deserialize(blob)
+                } catch (e: Exception) {
+                    continue
+                }
+                val envelope = synchronized(sessionLock) {
+                    if (session.hasSession()) {
+                        val env = session.encryptControlEnd()
+                        saveSession(session)
+                        env
+                    } else {
+                        null
+                    }
+                }
+                if (envelope != null) {
+                    queueHiddenEnvelope(session.conversationId, envelope, UUID.randomUUID().toString())
+                    count++
+                }
+                synchronized(sessionLock) {
+                    session.reset()
+                    saveSession(session)
+                    sessionCache.remove(session.conversationId)
+                }
+            }
+            count
+        }
+    }
+
+    /**
+     * Full identity rotation: new long-term keypair, all sessions and peer
+     * pins dropped, new public key published. Existing read history stays
+     * readable locally; peers will see a key-change warning.
+     */
+    fun rotateIdentityKey(callback: (Result<Unit>) -> Unit) {
+        ioCall(callback) {
+            synchronized(sessionLock) {
+                sessionCache.clear()
+            }
+            secure.removeWithPrefixes(listOf("session:", "pin:", "kxaccept:"))
+            identity.rotateIdentity()
+            val myKey = identity.publicKeyB64()
+            api.updateIdentityKey(myId, myKey)
+            Unit
+        }
+    }
+
+    private fun b64Field(value: String?): String =
+        if (value == null) "-" else Crypto.b64(value.toByteArray(Charsets.UTF_8))
+
+    private fun unb64Field(value: String): String? =
+        if (value == "-") null else String(Crypto.unb64(value), Charsets.UTF_8)
+
+    private fun buildBackupPayload(): String {
+        val sb = StringBuilder()
+        sb.append("MAMOOT-DATA-V1\n")
+        sb.append("user=").append(myId).append("\n")
+        sb.append("created=").append(System.currentTimeMillis()).append("\n")
+        for (key in secure.keysWithPrefixes(BACKUP_SECURE_PREFIXES)) {
+            val value = secure.getSecret(key) ?: continue
+            sb.append("S\t").append(b64Field(key)).append("\t").append(b64Field(value)).append("\n")
+        }
+        for (m in db.listAllForBackup()) {
+            val fields = listOf(
+                m.serverId, m.clientId, m.conversationId, m.senderId, m.kind,
+                m.envelopeBody, m.plainText, m.createdAt, m.status,
+                if (m.deleted) "1" else "0", m.ttlSeconds.toString(),
+                m.expiresAtMs?.toString(), if (m.expired) "1" else "0",
+                if (m.edited) "1" else "0", m.replyToServerId,
+                if (m.forwarded) "1" else "0", m.reactionsJson,
+                m.retryCount.toString(), m.nextRetryMs?.toString(),
+            )
+            sb.append("M")
+            for (field in fields) sb.append("\t").append(b64Field(field))
+            sb.append("\n")
+        }
+        return sb.toString()
+    }
+
+    private fun applyBackupPayload(payload: String): Int {
+        val lines = payload.split("\n")
+        if (lines.isEmpty() || lines[0].trim() != "MAMOOT-DATA-V1") {
+            throw ApiException("قالب پشتیبان پشتیبانی نمی‌شود.")
+        }
+        val owner = lines.firstOrNull { it.startsWith("user=") }?.removePrefix("user=")?.trim()
+        if (owner != myId) {
+            throw ApiException("این پشتیبان مربوط به حساب دیگری است و روی این حساب بازیابی نمی‌شود.")
+        }
+        var imported = 0
+        var identityTouched = false
+        for (line in lines) {
+            when {
+                line.startsWith("S\t") -> {
+                    val parts = line.split("\t")
+                    if (parts.size == 3) {
+                        val key = unb64Field(parts[1])
+                        val value = unb64Field(parts[2])
+                        if (key != null && value != null &&
+                            BACKUP_SECURE_PREFIXES.any { key.startsWith(it) }
+                        ) {
+                            secure.putSecretCommit(key, value)
+                            if (key.startsWith("identity_")) identityTouched = true
+                        }
+                    }
+                }
+                line.startsWith("M\t") -> {
+                    val parts = line.split("\t")
+                    if (parts.size == 20) {
+                        val f = parts.drop(1).map { unb64Field(it) }
+                        val message = LocalMessage(
+                            localId = 0,
+                            serverId = f[0],
+                            clientId = f[1] ?: continue,
+                            conversationId = f[2] ?: continue,
+                            senderId = f[3] ?: "",
+                            kind = f[4] ?: "text",
+                            envelopeBody = f[5],
+                            plainText = f[6],
+                            createdAt = f[7] ?: Instant.now().toString(),
+                            status = f[8] ?: LocalDb.STATUS_SENT,
+                            deleted = f[9] == "1",
+                            ttlSeconds = f[10]?.toIntOrNull() ?: 0,
+                            expiresAtMs = f[11]?.toLongOrNull(),
+                            expired = f[12] == "1",
+                            edited = f[13] == "1",
+                            replyToServerId = f[14],
+                            forwarded = f[15] == "1",
+                            reactionsJson = f[16],
+                            retryCount = f[17]?.toIntOrNull() ?: 0,
+                            nextRetryMs = f[18]?.toLongOrNull(),
+                        )
+                        if (db.insertBackup(message)) imported++
+                    }
+                }
+            }
+        }
+        if (identityTouched) identity.reloadIdentity()
+        synchronized(sessionLock) { sessionCache.clear() }
+        return imported
+    }
+
     fun getTtlChoice(conversationId: String): Int =
         secure.getSecret("ttl:$conversationId")?.toIntOrNull() ?: 0
 
@@ -346,6 +637,8 @@ class ChatRepository(
     // ------------------------------------------------------------ sync engine
     private fun syncInternal(conv: Conversation, markReadWanted: Boolean): SyncResult {
         purgeExpired()
+        touchPresenceThrottled()
+        flushOutbox(conv.id)
         val isGroup = conv.kind == "group"
         var peer = peerOf(conv)
         var peerPublicKey: PublicKey? = null
@@ -359,6 +652,8 @@ class ChatRepository(
                     username = freshProfile.username,
                     displayName = freshProfile.displayName,
                     e2eIdentityKey = freshProfile.e2eIdentityKey,
+                    lastSeenAt = freshProfile.lastSeenAt,
+                    lastSeenPublic = freshProfile.lastSeenPublic,
                 )
             }
             peerKeyBlocked = evaluatePeerKey(peer.id, peer.e2eIdentityKey)
@@ -396,10 +691,15 @@ class ChatRepository(
             }
         } else {
             var wm: String = watermark
+            var lastRowId: String? = null
             while (true) {
                 val page = api.fetchMessagesAfter(conv.id, wm)
                 for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
                 if (page.size < 200) break
+                // Guard against >200 rows sharing one timestamp: gte-cursor
+                // would refetch the same page forever.
+                if (page.last().id == lastRowId) break
+                lastRowId = page.last().id
                 wm = page.last().createdAt
             }
         }
@@ -409,7 +709,26 @@ class ChatRepository(
         if (session != null) healPlaceholders(conv, session)
 
         reconcileEditsAndDeletes(conv, session)
-        startExpiryForReadOwnMessages(conv, peer)
+        syncPlainReactions(conv.id)
+
+        var peerTyping = false
+        var peerLastSeenAt: String? = peer?.lastSeenAt
+        var peerLastSeenPublic: Boolean = peer?.lastSeenPublic ?: true
+        if (!isGroup && peer != null) {
+            try {
+                val until = api.fetchTypingUntil(conv.id, peer.id)?.let { UiUtil.parseInstant(it) }
+                peerTyping = until != null && until.isAfter(Instant.now())
+            } catch (e: Exception) {
+                // Typing is best-effort decoration.
+            }
+            try {
+                val presence = api.fetchPresence(peer.id)
+                peerLastSeenAt = presence.lastSeenAt
+                peerLastSeenPublic = presence.public
+            } catch (e: Exception) {
+                // Keep the (possibly stale) profile-copy values.
+            }
+        }
 
         if (markReadWanted && incomingNew > 0) {
             try {
@@ -419,6 +738,18 @@ class ChatRepository(
             }
         }
 
+        // Fresh read watermarks every sync: the Conversation object handed
+        // in by the UI goes stale, which previously froze read receipts
+        // (and timed-message countdowns) until the chat was reopened.
+        val memberReads = try {
+            api.fetchMemberReadStates(conv.id)
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        if (peer != null) {
+            startExpiryForReadOwnMessages(conv, memberReads[peer.id])
+        }
+
         val state = computeState(isGroup, session, peerKeyBlocked)
         val notice = when {
             peerKeyBlocked == SessionUiState.PEER_KEY_CHANGED && state == SessionUiState.READY ->
@@ -426,7 +757,13 @@ class ChatRepository(
             else -> null
         }
         val page = latestPage(conv.id)
-        return SyncResult(page.messages, state, peer, notice, page.hasMore)
+        return SyncResult(
+            page.messages, state, peer, notice, page.hasMore,
+            peerTyping = peerTyping,
+            peerLastSeenAt = peerLastSeenAt,
+            peerLastSeenPublic = peerLastSeenPublic,
+            memberLastReadAt = memberReads,
+        )
     }
 
     private fun latestPage(conversationId: String): PageResult {
@@ -448,8 +785,8 @@ class ChatRepository(
         }
     }
 
-    private fun startExpiryForReadOwnMessages(conv: Conversation, peer: MemberInfo?) {
-        val peerRead = UiUtil.parseInstant(peer?.lastReadAt ?: "") ?: return
+    private fun startExpiryForReadOwnMessages(conv: Conversation, peerReadIso: String?) {
+        val peerRead = UiUtil.parseInstant(peerReadIso ?: "") ?: return
         val now = System.currentTimeMillis()
         for (row in db.listAwaitingExpiry(conv.id, myId)) {
             val created = UiUtil.parseInstant(row.createdAt) ?: continue
@@ -469,8 +806,15 @@ class ChatRepository(
         }
         if (rows.isEmpty()) return
         var maxWm = wm
+        var maxInstant = UiUtil.parseInstant(wm)
         for (row in rows) {
-            listOfNotNull(row.editedAt, row.deletedAt).forEach { if (it > maxWm) maxWm = it }
+            listOfNotNull(row.editedAt, row.deletedAt).forEach { stamp ->
+                val inst = UiUtil.parseInstant(stamp)
+                if (inst != null && (maxInstant == null || inst.isAfter(maxInstant))) {
+                    maxInstant = inst
+                    maxWm = stamp
+                }
+            }
             val existing = db.getByServerId(row.id)
             if (existing == null) {
                 processRow(conv, row, session, null)
@@ -531,6 +875,10 @@ class ChatRepository(
                     "🔓 مخاطب چت امن را پایان داد؛ پیام‌های تازه عادی ارسال می‌شوند.",
                 )
             }
+            plain.reactTargetId != null -> {
+                applyReactionLocal(plain.reactTargetId, local.senderId, plain.reaction ?: "")
+                synchronized(sessionLock) { saveSession(session) }
+            }
             plain.reviseTargetId != null -> {
                 val target = db.getByServerId(plain.reviseTargetId)
                 if (target != null && !target.deleted) {
@@ -548,7 +896,10 @@ class ChatRepository(
                 } else {
                     null
                 }
-                db.updatePlainByServerId(serverId, plain.text, plain.ttlSeconds, expires)
+                db.updatePlainByServerId(
+                    serverId, plain.text, plain.ttlSeconds, expires,
+                    plain.replyTargetId, plain.forwarded,
+                )
                 synchronized(sessionLock) { saveSession(session) }
             }
         }
@@ -599,7 +950,8 @@ class ChatRepository(
         if (conv.kind == "group" || row.kind == "text") {
             db.insert(row.id, clientId, conv.id, row.senderId, row.kind,
                 if (deleted) null else row.body, if (deleted) null else row.body,
-                row.createdAt, LocalDb.STATUS_SENT, deleted)
+                row.createdAt, LocalDb.STATUS_SENT, deleted,
+                replyToServerId = row.replyToId, forwarded = row.forwarded)
             return incoming
         }
 
@@ -650,7 +1002,7 @@ class ChatRepository(
                         )
                         if (env != null) {
                             saveSession(session)
-                            secure.putSecret(storedKey, env)
+                            secure.putSecretCommit(storedKey, env)
                         }
                         env
                     }
@@ -723,28 +1075,133 @@ class ChatRepository(
         }
     }
 
-    private fun postOrMarkFailed(conversationId: String, body: String, kind: String, clientId: String, localId: Long) {
+    private fun postVisible(local: LocalMessage) {
+        val body = local.envelopeBody ?: throw ApiException("متن پیام در دسترس نیست")
         try {
-            val row = api.insertMessage(conversationId, myId, body, kind, clientId)
-            db.markSentByClientId(clientId, row.id, row.createdAt)
+            val row = api.insertMessage(
+                local.conversationId, myId, body, local.kind, local.clientId,
+                local.replyToServerId, local.forwarded,
+            )
+            db.markSentByClientId(local.clientId, row.id, row.createdAt)
         } catch (e: Exception) {
             if (e is ApiException && e.code == "23505") {
-                db.setStatusByLocalId(localId, LocalDb.STATUS_SENT) // idempotent duplicate
+                db.setStatusByLocalId(local.localId, LocalDb.STATUS_SENT) // idempotent duplicate
             } else {
-                db.setStatusByLocalId(localId, LocalDb.STATUS_FAILED)
+                scheduleRetryFor(local, e)
                 throw e
             }
         }
     }
 
-    private fun sendPlain(conversationId: String, text: String) {
+    private fun sendPlain(
+        conversationId: String,
+        text: String,
+        replyToServerId: String?,
+        forwarded: Boolean,
+    ) {
         val clientId = UUID.randomUUID().toString()
         val localId = db.insert(
             serverId = null, clientId = clientId, conversationId = conversationId,
             senderId = myId, kind = "text", envelopeBody = text, plainText = text,
             createdAt = Instant.now().toString(), status = LocalDb.STATUS_SENDING, deleted = false,
+            replyToServerId = replyToServerId, forwarded = forwarded,
         )
-        postOrMarkFailed(conversationId, text, "text", clientId, localId)
+        db.getByLocalId(localId)?.let { postVisible(it) }
+    }
+
+    fun touchPresenceThrottled() {
+        val now = System.currentTimeMillis()
+        if (now - lastPresenceTouchMs < 60_000L) return
+        lastPresenceTouchMs = now
+        try {
+            api.touchPresence()
+        } catch (e: Exception) {
+            lastPresenceTouchMs = 0L
+        }
+    }
+
+    /** Fire-and-forget for lifecycle/connectivity callbacks. */
+    fun flushAllOutboxAsync() {
+        if (api.myUserId == null) return
+        Threads.runIo {
+            try {
+                flushOutbox(null)
+            } catch (e: Exception) {
+                // Still offline; next sync/resume will retry.
+            }
+        }
+    }
+
+    private fun flushOutbox(conversationId: String?) {
+        val due = db.listRetryableOutgoing(conversationId, System.currentTimeMillis(), 10)
+        for (local in due) {
+            try {
+                postVisible(local)
+            } catch (e: Exception) {
+                // postVisible already scheduled the next backoff (or marked
+                // a permanent failure); keep flushing the rest.
+            }
+        }
+    }
+
+    private fun isTransientFailure(e: Exception): Boolean = when (e) {
+        is ApiException ->
+            e.status == 0 || e.status == 408 || e.status == 425 || e.status == 429 ||
+                e.status >= 500 ||
+                (e.message ?: "").contains("سریع") ||
+                (e.message ?: "").contains("درخواست‌ها زیاد")
+        is IOException -> true
+        else -> false
+    }
+
+    private fun backoffMs(retryCount: Int, clientId: String): Long {
+        val exp = minOf(retryCount, 6)
+        val base = minOf(5 * 60_000L, 5_000L shl exp)
+        val jitter = (clientId.hashCode() and 1023).toLong()
+        return base + jitter
+    }
+
+    private fun scheduleRetryFor(local: LocalMessage, e: Exception) {
+        val count = local.retryCount + 1
+        val next = if (isTransientFailure(e)) {
+            System.currentTimeMillis() + backoffMs(count, local.clientId)
+        } else {
+            null // permanent failure (e.g. blocked): manual retry only
+        }
+        db.scheduleRetry(local.localId, count, next)
+    }
+
+    /** Server-side reaction sync for plain/group rows on the latest page. */
+    private fun syncPlainReactions(conversationId: String) {
+        val rows = db.listVisibleLatest(conversationId, PAGE_SIZE)
+            .filter { it.kind == "text" && it.serverId != null }
+        if (rows.isEmpty()) return
+        val reactions = try {
+            api.fetchReactions(rows.map { it.serverId!! })
+        } catch (e: Exception) {
+            return
+        }
+        val byMessage = reactions.groupBy { it.messageId }
+        for (row in rows) {
+            val list = byMessage[row.serverId].orEmpty()
+            val json = if (list.isEmpty()) {
+                null
+            } else {
+                JSONObject().apply { list.forEach { put(it.userId, it.reaction) } }.toString()
+            }
+            if (json != row.reactionsJson) db.setReactionsJsonByServerId(row.serverId!!, json)
+        }
+    }
+
+    private fun applyReactionLocal(targetServerId: String, userId: String, emoji: String) {
+        val target = db.getByServerId(targetServerId) ?: return
+        val json = try {
+            JSONObject(target.reactionsJson ?: "{}")
+        } catch (e: Exception) {
+            JSONObject()
+        }
+        if (emoji.isEmpty()) json.remove(userId) else json.put(userId, emoji)
+        db.setReactionsJsonByServerId(targetServerId, if (json.length() == 0) null else json.toString())
     }
 
     // ------------------------------------------------------------ helpers
@@ -804,7 +1261,9 @@ class ChatRepository(
     }
 
     private fun saveSession(session: SecretSession) {
-        secure.putSecret(sessionKey(session.conversationId), session.serialize())
+        // Synchronous write: an async apply() could lose the newest ratchet
+        // state on process death and roll the chains back.
+        secure.putSecretCommit(sessionKey(session.conversationId), session.serialize())
     }
 
     private fun sessionKey(conversationId: String): String = "session:$conversationId"
@@ -830,22 +1289,56 @@ class ChatRepository(
         return prefix + last.body
     }
 
-    private fun toUi(local: LocalMessage): UiMessage = UiMessage(
-        localId = local.localId,
-        serverId = local.serverId,
-        senderId = local.senderId,
-        mine = local.senderId == api.myUserId,
-        text = local.plainText,
-        createdAt = local.createdAt,
-        status = local.status,
-        deleted = local.deleted,
-        encrypted = local.kind == "e2ee",
-        ttlSeconds = local.ttlSeconds,
-        expiresAtMs = local.expiresAtMs,
-        expired = local.expired,
-        edited = local.edited,
-        system = local.senderId.isEmpty(),
-    )
+    private fun toUi(local: LocalMessage): UiMessage {
+        val reactions = parseReactions(local.reactionsJson)
+        return UiMessage(
+            localId = local.localId,
+            serverId = local.serverId,
+            senderId = local.senderId,
+            mine = local.senderId == api.myUserId,
+            text = local.plainText,
+            createdAt = local.createdAt,
+            status = local.status,
+            deleted = local.deleted,
+            encrypted = local.kind == "e2ee",
+            ttlSeconds = local.ttlSeconds,
+            expiresAtMs = local.expiresAtMs,
+            expired = local.expired,
+            edited = local.edited,
+            system = local.senderId.isEmpty(),
+            replyToServerId = local.replyToServerId,
+            replySnippet = local.replyToServerId?.let { replySnippet(it) },
+            forwarded = local.forwarded,
+            reactions = reactions,
+            myReaction = api.myUserId?.let { reactions[it] },
+        )
+    }
+
+    private fun parseReactions(json: String?): Map<String, String> {
+        if (json.isNullOrEmpty()) return emptyMap()
+        return try {
+            val obj = JSONObject(json)
+            val out = LinkedHashMap<String, String>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                out[key] = obj.getString(key)
+            }
+            out
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun replySnippet(serverId: String): String {
+        val target = db.getByServerId(serverId) ?: return "پیام اصلی در دسترس نیست"
+        return when {
+            target.expired -> "⏱ پیام خودکار حذف شد"
+            target.deleted -> "پیام حذف شد"
+            target.plainText != null -> target.plainText.replace(Regex("\\s+"), " ").take(90)
+            else -> "🔒 پیام رمزنگاری‌شده"
+        }
+    }
 
     private fun <T> ioCall(callback: (Result<T>) -> Unit, block: () -> T) {
         Threads.runIo {
@@ -855,6 +1348,7 @@ class ChatRepository(
     }
 
     private companion object {
+        val BACKUP_SECURE_PREFIXES = listOf("identity_", "session:", "pin:", "ttl:", "editwm:", "kxaccept:")
         const val PAGE_SIZE = 100
         const val MAX_PLAIN_CHARS = 4000
         const val PROFILE_TTL_MS = 5 * 60 * 1000L

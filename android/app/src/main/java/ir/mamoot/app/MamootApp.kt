@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.net.ConnectivityManager
+import android.net.Network
 import android.view.WindowManager
 import ir.mamoot.app.crypto.IdentityManager
 import ir.mamoot.app.net.SupabaseApi
@@ -65,6 +67,25 @@ class MamootApp : Application() {
         appLock = AppLock(secure)
         createNotificationChannel()
         registerSecurityCallbacks()
+        registerConnectivityCallback()
+    }
+
+    /**
+     * When connectivity returns, flush the offline outbox immediately instead
+     * of waiting for the next poll — messages feel instant again without any
+     * persistent socket or Play Services.
+     */
+    private fun registerConnectivityCallback() {
+        try {
+            val cm = getSystemService(ConnectivityManager::class.java) ?: return
+            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    repo.flushAllOutboxAsync()
+                }
+            })
+        } catch (e: Exception) {
+            // Best effort only; periodic sync still covers delivery.
+        }
     }
 
     /**
