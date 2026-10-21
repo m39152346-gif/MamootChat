@@ -1,0 +1,58 @@
+== aapt badging ==
+package: name='ir.mamoot.app' versionCode='12' versionName='0.5.2' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+sdkVersion:'26'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='android.permission.POST_NOTIFICATIONS'
+uses-permission: name='android.permission.RECEIVE_BOOT_COMPLETED'
+application-label:'مموت'
+application-icon-160:'res/BW.xml'
+application-icon-65534:'res/BW.xml'
+application-icon-65535:'res/BW.xml'
+application: label='مموت' icon='res/BW.xml'
+launchable-activity: name='ir.mamoot.app.ui.MainActivity'  label='' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+main
+other-activities
+other-services
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+
+== zipalign check ==
+  358700 res/zR.xml (OK - compressed)
+  359104 resources.arsc (OK)
+Verification successful
+
+== apksigner verify ==
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v3.2 scheme (APK Signature Scheme v3.2): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+V2 Signer: certificate DN: O=MamootChat, CN=Mamoot
+V2 Signer: certificate SHA-256 digest: ca7ce0ee393f6db570b6518a3c537bc4418b5c83686084d3dc7abe8dcbcfa113
+V2 Signer: certificate SHA-1 digest: 566c8d0307ba9c9bc9b0cd90a1895848e6d94429
+V2 Signer: certificate MD5 digest: 0fa62acdc228555fcaa5da9b03af0c02
+V2 Signer: key algorithm: RSA
+V2 Signer: key size (bits): 3072
+V2 Signer: public key SHA-256 digest: 90cc054fe28605f266498a58537065e98cf3d48526bb15d553405fca45d4c94c
+V2 Signer: public key SHA-1 digest: cd287d00ede6bc8683aeb71db037df61b39b8479
+V2 Signer: public key MD5 digest: ec4ee7d1731bc97ecedaf39bf2162d93
+
+== unit test results ==
+suite=ir.mamoot.app.crypto.BackupRulesTest tests=2 failures=0 errors=0
+suite=ir.mamoot.app.crypto.CryptoSafetyNumberTest tests=3 failures=0 errors=0
+suite=ir.mamoot.app.crypto.CryptoTest tests=5 failures=0 errors=0
+suite=ir.mamoot.app.crypto.SecretSessionTest tests=16 failures=0 errors=0
+suite=ir.mamoot.app.crypto.SecureBackupTest tests=6 failures=0 errors=0
+suite=ir.mamoot.app.security.AppLockTest tests=2 failures=0 errors=0
+suite=ir.mamoot.app.sync.SyncGuardsTest tests=3 failures=0 errors=0
+
+== apk size ==
+-rw-r--r-- 1 runner runner 381K Oct 21 15:04 /home/runner/work/_temp/out/mamoot.apk
