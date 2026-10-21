@@ -45,6 +45,15 @@ class ConversationAdapter(
         avatar.text = UiUtil.initials(item.title)
         avatar.background.mutate().setTint(UiUtil.avatarColor(seed))
 
+        val onlineDot = view.findViewById<View>(R.id/viewOnlineDot)
+        val peer = item.peer
+        onlineDot.visibility = if (
+            peer != null && peer.lastSeenPublic && UiUtil.isOnline(peer.lastSeenAt)
+        ) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
         view.findViewById<TextView>(R.id.tvTitle).text = item.title
         val timeIso = item.conversation.lastMessage?.createdAt ?: item.conversation.createdAt
         val timeView = view.findViewById<TextView>(R.id.tvTime)
@@ -102,6 +111,8 @@ class MessageAdapter(
     private val context: Context,
     private val items: MutableList<UiMessage> = mutableListOf(),
 ) : BaseAdapter() {
+
+    private var lastAnimatedLocalId = Long.MIN_VALUE
 
     var peerLastReadAt: String = ""
     var isGroup: Boolean = false
@@ -277,6 +288,22 @@ class MessageAdapter(
             msg.status == LocalDb.STATUS_SENDING || msg.edited || msg.forwarded ||
             msg.ttlSeconds > 0 || msg.deleted || msg.expired
         meta.visibility = if (needsMeta) View.VISIBLE else View.GONE
+        // Gentle entrance for genuinely new tail messages (recycling-safe:
+        // every bind first cancels and resets the transform).
+        bubble.animate().cancel()
+        bubble.alpha = 1f
+        bubble.translationY = 0f
+        bubble.scaleX = 1f
+        bubble.scaleY = 1f
+        if (msg.localId > lastAnimatedLocalId && position >= items.size - 3) {
+            lastAnimatedLocalId = msg.localId
+            bubble.alpha = 0f
+            bubble.translationY = 26f
+            bubble.scaleX = 0.96f
+            bubble.scaleY = 0.96f
+            bubble.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                .setDuration(230).start()
+        }
         return view
     }
 }

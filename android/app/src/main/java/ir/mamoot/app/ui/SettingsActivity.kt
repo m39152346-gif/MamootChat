@@ -35,7 +35,7 @@ class SettingsActivity : Activity() {
         tvError = findViewById(R.id.tvSettingsError)
 
         findViewById<TextView>(R.id.tvSettingsEmail).text = app.api.session?.email ?: ""
-        findViewById<Button>(R.id.btnBackSettings).setOnClickListener { finish() }
+        findViewById<android.view.View>(R.id.btnBackSettings).setOnClickListener { finish() }
         findViewById<Button>(R.id.btnSaveSettings).setOnClickListener { save() }
         findViewById<Button>(R.id.btnLogout).setOnClickListener { confirmLogout() }
         btnAppLock = findViewById(R.id.btnAppLock)

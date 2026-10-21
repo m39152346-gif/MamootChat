@@ -1,10 +1,39 @@
-# Mamoot UI Design — iMessage-inspired (v0.4.2)
+# Mamoot UI Design — Aurora (v0.5.0, built on the v0.4.2 iMessage base)
 
 Reference: [Apple chat messages ~ iMessage (Figma Community)](https://www.figma.com/design/j44CSdw96tF25wplPePn1v/Apple-chat-messages-~-iMessage--Community-?node-id=0-1&t=IlVtLFb9TWJ6rG2e-1)
 — used as *inspiration* (layout language, spacing, color roles), not copied
 assets. Everything below is implemented with Android XML shapes only
 (zero third-party dependencies, as before). A pixel-faithful web mock of
 the shipped tokens lives in `docs/ui-preview/index.html`.
+
+
+## What v0.5.0 ("Aurora") adds
+
+- **Vazirmatn everywhere** (`res/font/vazirmatn`, Regular+Bold, set as the
+  theme `fontFamily` and in the button style) — the single biggest Persian
+  typography upgrade; digits/latin fall back cleanly.
+- **Real vector icons** (`ic_*`, stroke style, tinted per use): back,
+  search, lock, sliders, compose, send-up, timer, chevron-down, shield,
+  key, block, trash, logout. Emoji no longer serve as chrome icons on the
+  main screens; circular icon buttons are `ImageButton`s on ripple discs.
+- **Motion**: theme-level activity transitions (fade+rise / scale),
+  staggered conversation-list entrance, new-message bubble entrance
+  (fade/rise/scale, recycling-safe), send-button pop + dim-when-empty,
+  animated three-dot typing bubble, scroll-to-bottom FAB with pop-in,
+  haptic ticks on send and long-press.
+- **Depth**: subtle aurora chat wallpaper (`wall_start/center/end`),
+  floating elevated composer card, surface chat header with elevation,
+  gradient hero headers (conversation list + settings) with a rounded
+  28dp sheet overlapping the hero, iOS-Settings-style grouped card in
+  Settings, global pill `MamootButton` style (also lifts dialogs).
+- **Imagery & identity**: generated 3D illustrations for the empty
+  conversation state and the auth hero (`drawable-nodpi/img_*`),
+  gradient adaptive launcher icon with a refined bubble mark, branded
+  gradient splash (`SplashTheme` swapped to `AppTheme` in `onCreate`),
+  green online presence dot on conversation avatars.
+- **UX detail**: Telegram-style scroll-to-bottom button with an
+  unseen-below count badge; send affordance reflects composer state;
+  typing is a bubble in the thread, not only header text.
 
 ## Design tokens
 

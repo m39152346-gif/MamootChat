@@ -11,7 +11,11 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.HapticFeedbackConstants
 import android.view.View
+import android.widget.AbsListView
+import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -36,8 +40,22 @@ class ChatActivity : Activity() {
     private lateinit var adapter: MessageAdapter
     private lateinit var lvMessages: ListView
     private lateinit var etMessage: EditText
-    private lateinit var btnSend: Button
-    private lateinit var btnTtl: Button
+    private lateinit var btnSend: ImageButton
+    private lateinit var btnTtl: ImageButton
+    private lateinit var layoutTyping: LinearLayout
+    private lateinit var layoutScrollDown: FrameLayout
+    private lateinit var tvScrollBadge: TextView
+    private lateinit var typeDots: List<TextView>
+    private var typeDotStep = 0
+    private var unseenBelow = 0
+    private var sendWasActive = false
+    private val typeDotRunnable = object : Runnable {
+        override fun run() {
+            typeDots.forEachIndexed { i, dot -> dot.alpha = if (i == typeDotStep % 3) 1f else 0.3f }
+            typeDotStep++
+            if (peerTypingNow) handler.postDelayed(this, 320)
+        }
+    }
     private lateinit var tvChatTitle: TextView
     private lateinit var tvChatStatus: TextView
     private lateinit var layoutBanner: LinearLayout
@@ -98,12 +116,26 @@ class ChatActivity : Activity() {
         etChatSearch = findViewById(R.id.etChatSearch)
         layoutReply = findViewById(R.id.layoutReply)
         tvReplyQuote = findViewById(R.id.tvReplyQuote)
+        layoutTyping = findViewById(R.id.layoutTyping)
+        layoutScrollDown = findViewById(R.id.layoutScrollDown)
+        tvScrollBadge = findViewById(R.id.tvScrollBadge)
+        typeDots = listOf(
+            findViewById(R.id.tvTypeDot1),
+            findViewById(R.id.tvTypeDot2),
+            findViewById(R.id.tvTypeDot3),
+        )
+        findViewById<View>(R.id.btnScrollDown).setOnClickListener {
+            unseenBelow = 0
+            updateScrollDownButton()
+            lvMessages.smoothScrollToPosition(adapter.count - 1)
+        }
         findViewById<Button>(R.id.btnCancelReply).setOnClickListener { clearReply() }
         etMessage.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun afterTextChanged(text: Editable?) {
                 maybeSendTyping(text?.isNotEmpty() == true)
+                updateSendButton(text?.isNotBlank() == true)
             }
         })
 
@@ -121,26 +153,39 @@ class ChatActivity : Activity() {
         adapter = MessageAdapter(this)
         adapter.isGroup = conv.kind == "group"
         lvMessages.adapter = adapter
-        lvMessages.setOnItemLongClickListener { _, _, position, _ ->
+        lvMessages.setOnItemLongClickListener { _, itemView, position, _ ->
+            itemView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             showMessageActions(adapter.getItem(position))
             true
         }
+        lvMessages.setOnScrollListener(object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(view: AbsListView?, state: Int) = Unit
+            override fun onScroll(view: AbsListView?, first: Int, visible: Int, total: Int) {
+                if (total == 0) return
+                if (first + visible >= total - 1) unseenBelow = 0
+                updateScrollDownButton()
+            }
+        })
         lvMessages.setOnItemClickListener { _, _, position, _ ->
             val msg = adapter.getItem(position)
             if (msg.replyToServerId != null) jumpToServerMessage(msg.replyToServerId)
         }
 
-        findViewById<Button>(R.id.btnBack).setOnClickListener { finish() }
-        findViewById<Button>(R.id.btnSecurity).setOnClickListener {
+        findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
+        findViewById<View>(R.id.btnSecurity).setOnClickListener {
             if (conv.kind == "group") showGroupInfo() else showSecurityDialog()
         }
         findViewById<LinearLayout>(R.id.layoutChatHeader).setOnClickListener {
             if (conv.kind == "group") showGroupInfo() else showPeerProfile()
         }
-        btnSend.setOnClickListener { sendCurrentText() }
+        btnSend.setOnClickListener {
+            btnSend.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            sendCurrentText()
+        }
+        updateSendButton(false)
         btnTtl.setOnClickListener { showTtlPicker() }
         btnLoadOlder.setOnClickListener { loadOlder() }
-        findViewById<Button>(R.id.btnChatSearch).setOnClickListener { toggleSearch(true) }
+        findViewById<View>(R.id.btnChatSearch).setOnClickListener { toggleSearch(true) }
         findViewById<Button>(R.id.btnSearchClose).setOnClickListener { toggleSearch(false) }
         findViewById<Button>(R.id.btnSearchNext).setOnClickListener { jumpToMatch(+1) }
         findViewById<Button>(R.id.btnSearchPrev).setOnClickListener { jumpToMatch(-1) }
@@ -181,6 +226,7 @@ class ChatActivity : Activity() {
         super.onPause()
         resumed = false
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(typeDotRunnable)
         sendTyping(false)
     }
 
@@ -280,11 +326,53 @@ class ChatActivity : Activity() {
 
     private fun applyMessages(messages: List<UiMessage>, forceScroll: Boolean) {
         val wasAtBottom = lvMessages.lastVisiblePosition >= adapter.count - 2
+        val previousCount = lastMessageCount
         adapter.submit(messages)
         lastMessageCount = messages.size
         if (messages.isNotEmpty() && (forceScroll || wasAtBottom || !firstLoadDone)) {
+            unseenBelow = 0
             lvMessages.post { lvMessages.setSelection(adapter.count - 1) }
+        } else if (messages.size > previousCount && previousCount > 0) {
+            unseenBelow += messages.size - previousCount
         }
+        updateScrollDownButton()
+    }
+
+    private fun updateScrollDownButton() {
+        if (!::layoutScrollDown.isInitialized || !::adapter.isInitialized) return
+        val atBottom = adapter.count == 0 ||
+            lvMessages.lastVisiblePosition >= adapter.count - 2
+        val shouldShow = !atBottom && adapter.count > 0
+        if (shouldShow && layoutScrollDown.visibility != View.VISIBLE) {
+            layoutScrollDown.visibility = View.VISIBLE
+            layoutScrollDown.scaleX = 0.6f
+            layoutScrollDown.scaleY = 0.6f
+            layoutScrollDown.alpha = 0f
+            layoutScrollDown.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(180).start()
+        } else if (!shouldShow && layoutScrollDown.visibility == View.VISIBLE) {
+            layoutScrollDown.visibility = View.GONE
+        }
+        tvScrollBadge.visibility = if (unseenBelow > 0) View.VISIBLE else View.GONE
+        if (unseenBelow > 0) tvScrollBadge.text = UiUtil.faNum(unseenBelow)
+    }
+
+    private fun updateSendButton(active: Boolean) {
+        if (!::btnSend.isInitialized) return
+        btnSend.alpha = if (active) 1f else 0.45f
+        if (active && !sendWasActive) {
+            btnSend.scaleX = 0.8f
+            btnSend.scaleY = 0.8f
+            btnSend.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+        }
+        sendWasActive = active
+    }
+
+    private fun updateTypingBubble() {
+        if (!::layoutTyping.isInitialized) return
+        val show = peerTypingNow && conv.kind != "group"
+        layoutTyping.visibility = if (show) View.VISIBLE else View.GONE
+        handler.removeCallbacks(typeDotRunnable)
+        if (show) handler.post(typeDotRunnable)
     }
 
     private fun loadOlder() {
@@ -380,6 +468,7 @@ class ChatActivity : Activity() {
                 if (presence.isEmpty()) base else "$base · $presence"
             }
         }
+        updateTypingBubble()
     }
 
     private fun maybeSendTyping(hasText: Boolean) {
@@ -854,7 +943,7 @@ class ChatActivity : Activity() {
     }
 
     private fun updateTtlButton() {
-        btnTtl.setTextColor(
+        btnTtl.setColorFilter(
             getColor(if (ttlChoiceSeconds > 0) R.color.brand else R.color.text2),
         )
     }

@@ -51,7 +51,7 @@ class NewChatActivity : Activity() {
         etGroupTitle = findViewById(R.id.etGroupTitle)
         btnCreateGroup = findViewById(R.id.btnCreateGroup)
 
-        findViewById<Button>(R.id.btnBackNew).setOnClickListener { finish() }
+        findViewById<android.view.View>(R.id.btnBackNew).setOnClickListener { finish() }
         btnNewModeDm.setOnClickListener { setGroupMode(false) }
         btnNewModeGroup.setOnClickListener { setGroupMode(true) }
         btnCreateGroup.setOnClickListener { createGroup() }

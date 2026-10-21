@@ -23,5 +23,9 @@
     <color name="bubble_mine_start">#0A84FF</color>
     <color name="bubble_mine_end">#0062E6</color>
     <color name="bubble_theirs">#E9E9EB</color>
+    <color name="wall_start">#F8FAFF</color>
+    <color name="wall_center">#F1F4FF</color>
+    <color name="wall_end">#E9EEFF</color>
+    <color name="on_brand_muted">#DCE9FF</color>
     <color name="white">#FFFFFF</color>
 </resources>

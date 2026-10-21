@@ -20,7 +20,7 @@ class MainActivity : Activity() {
     private val app: MamootApp get() = application as MamootApp
 
     private lateinit var adapter: ConversationAdapter
-    private lateinit var tvEmpty: TextView
+    private lateinit var tvEmpty: View
     private lateinit var lvConversations: ListView
     private val handler = Handler(Looper.getMainLooper())
     private var errorShown = false
@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.AppTheme)
         super.onCreate(savedInstanceState)
         if (app.api.session == null) {
             startActivity(Intent(this, AuthActivity::class.java))
@@ -68,10 +69,10 @@ class MainActivity : Activity() {
             val item = adapter.getItem(position)
             startActivity(ChatActivity.intentFor(this, item))
         }
-        findViewById<Button>(R.id.btnNewChat).setOnClickListener {
+        findViewById<View>(R.id.btnNewChat).setOnClickListener {
             startActivity(Intent(this, NewChatActivity::class.java))
         }
-        findViewById<Button>(R.id.btnSettings).setOnClickListener {
+        findViewById<View>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         app.repo.ensureIdentityUploaded { /* publish/refresh identity key silently */ }

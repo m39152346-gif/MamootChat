@@ -11,17 +11,13 @@
         android:orientation="vertical"
         android:padding="28dp">
 
-        <TextView
-            android:layout_width="76dp"
-            android:layout_height="76dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="24dp"
-            android:background="@drawable/logo_circle"
-            android:gravity="center"
-            android:text="م"
-            android:textColor="@color/white"
-            android:textSize="34sp"
-            android:textStyle="bold" />
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="190dp"
+            android:layout_marginTop="8dp"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:src="@drawable/img_secure_hero" />
 
         <TextView
             android:layout_width="wrap_content"

@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/chat_bg"
+    android:background="@drawable/chat_wallpaper"
     android:orientation="vertical">
 
     <!--
@@ -12,7 +12,8 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="104dp"
-        android:background="@color/chat_bg">
+        android:background="@color/surface"
+        android:elevation="4dp">
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -77,7 +78,7 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <Button
+        <ImageButton
             android:id="@+id/btnBack"
             android:layout_width="38dp"
             android:layout_height="38dp"
@@ -85,13 +86,9 @@
             android:layout_marginStart="12dp"
             android:background="@drawable/icon_circle_bg"
             android:contentDescription="بازگشت"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:padding="0dp"
-            android:text="›"
-            android:textColor="@color/brand"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:padding="9dp"
+            android:src="@drawable/ic_chevron_rtl"
+            android:tint="@color/brand" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -100,30 +97,26 @@
             android:layout_marginEnd="12dp"
             android:orientation="horizontal">
 
-            <Button
+            <ImageButton
                 android:id="@+id/btnChatSearch"
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:background="@drawable/icon_circle_bg"
                 android:contentDescription="جستجو در گفتگو"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:padding="0dp"
-                android:text="🔎"
-                android:textSize="15sp" />
+                android:padding="9dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/text2" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/btnSecurity"
                 android:layout_width="38dp"
                 android:layout_height="38dp"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/icon_circle_bg"
                 android:contentDescription="امنیت گفتگو"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:padding="0dp"
-                android:text="🔒"
-                android:textSize="15sp" />
+                android:padding="9dp"
+                android:src="@drawable/ic_lock"
+                android:tint="@color/text2" />
         </LinearLayout>
 
         <View
@@ -221,23 +214,86 @@
         android:textColor="@color/brand"
         android:visibility="gone" />
 
-    <ListView
-        android:id="@+id/lvMessages"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="@color/chat_bg"
-        android:divider="@null"
-        android:dividerHeight="0dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="10dp"
-        android:scrollbars="none" />
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/lvMessages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="10dp"
+            android:scrollbars="none" />
+
+        <!-- Animated three-dot typing bubble (peer messages side). -->
+        <LinearLayout
+            android:id="@+id/layoutTyping"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bubble_theirs"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="14dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <TextView android:id="@+id/tvTypeDot1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
+        </LinearLayout>
+
+        <!-- Telegram-style scroll-to-bottom with unread-below badge. -->
+        <FrameLayout
+            android:id="@+id/layoutScrollDown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="14dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/btnScrollDown"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="رفتن به تازه‌ترین پیام"
+                android:elevation="5dp"
+                android:padding="11dp"
+                android:src="@drawable/ic_chevron_down"
+                android:tint="@color/text" />
+
+            <TextView
+                android:id="@+id/tvScrollBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="19dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/badge_bg"
+                android:gravity="center"
+                android:minWidth="19dp"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:textColor="@color/white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </FrameLayout>
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/layoutReply"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/chat_bg"
+        android:background="@color/surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="14dp"
@@ -265,24 +321,29 @@
             android:textColor="@color/text2" />
     </LinearLayout>
 
-    <!-- Floating composer: pill input + circular blue send (iMessage). -->
+    <!-- Floating composer card: detached pill + circular blue send. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/chat_bg"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/composer_card_bg"
+        android:elevation="7dp"
         android:gravity="bottom"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
+        android:paddingStart="8dp"
         android:paddingTop="6dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="10dp">
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp">
 
         <EditText
             android:id="@+id/etMessage"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="@drawable/input_bg"
+            android:background="@null"
             android:hint="پیام بنویسید…"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
@@ -295,38 +356,31 @@
             android:textColorHint="@color/text2"
             android:textSize="16sp" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnTtl"
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:layout_gravity="bottom"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:layout_marginBottom="3dp"
             android:background="@drawable/icon_circle_bg"
             android:contentDescription="حذف خودکار پیام"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:padding="0dp"
-            android:text="⏱"
-            android:textColor="@color/text2"
-            android:textSize="15sp"
+            android:padding="8dp"
+            android:src="@drawable/ic_timer"
+            android:tint="@color/text2"
             android:visibility="gone" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnSend"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:layout_gravity="bottom"
-            android:layout_marginStart="8dp"
-            android:layout_marginBottom="3dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginBottom="2dp"
             android:background="@drawable/send_circle_bg"
             android:contentDescription="ارسال"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:padding="0dp"
-            android:text="↑"
-            android:textColor="@color/white"
-            android:textSize="19sp"
-            android:textStyle="bold" />
+            android:padding="9dp"
+            android:src="@drawable/ic_send_up"
+            android:tint="@color/white" />
     </LinearLayout>
 </LinearLayout>
