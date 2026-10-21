@@ -140,8 +140,9 @@ jobs:
           git commit -q -m "Android APK from $GITHUB_SHA"
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:apk-latest
 
-      - name: Publish CI logs to ci-logs branch (always)
-        if: always()
+      # Audit F15: only publish logs when something actually failed.
+      - name: Publish CI logs to ci-logs branch (on failure)
+        if: failure()
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

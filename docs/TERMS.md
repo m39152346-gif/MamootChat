@@ -1,6 +1,6 @@
 # Mamoot Terms of Use
 
-_Last updated: 2026-10-21 (v0.4.0)_
+_Last updated: 2026-10-21 (v0.4.1)_
 
 Welcome to Mamoot (مموت), a small open-source text messenger. By creating an
 account or using the app you agree to these terms.
@@ -29,6 +29,10 @@ You agree not to use Mamoot to:
 - probe, overload, or circumvent the security of the service
   (rate limits, row-level security, encryption).
 
+To keep the free service usable for everyone, automated server-side rate
+limits apply (for example: limited new conversations and searches per day,
+message-rate caps, and group member changes restricted to the group owner).
+
 Accounts that violate these rules may be restricted or removed. Reports are
 reviewed using the report reason and, for non-secret chats, the reported
 message. Secret-chat content cannot be reviewed because it is end-to-end
@@ -37,8 +41,9 @@ encrypted; repeated reports about an account may still lead to restriction.
 ## Your content
 
 You own the messages you send. To operate the service, the server stores and
-delivers them as described in the Privacy Policy. Deleting your account
-removes your messages permanently.
+delivers them as described in the Privacy Policy, including its retention
+schedule for delivered secret-chat ciphertext and deleted messages.
+Deleting your account removes your messages permanently.
 
 ## Liability
 

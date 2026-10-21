@@ -399,3 +399,8 @@ input:focus, textarea:focus { border-color: var(--brand); outline: none; box-sha
   .back-btn { display: inline-flex; }
   .bubble { max-width: 84%; }
 }
+
+/* Static legal pages (F17 lean website) */
+.legal-text { line-height: 2; font-size: 15px; }
+.legal-text ul { padding-inline-start: 20px; }
+.legal-text li { margin: 6px 0; }

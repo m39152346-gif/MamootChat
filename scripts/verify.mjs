@@ -1,10 +1,17 @@
 /**
- * End-to-end + security verification against the real Supabase project.
- * Uses ONLY the publishable (anon) key, exactly like the browser app.
+ * End-to-end + security verification against a Supabase project.
+ * Uses ONLY the publishable (anon) key, exactly like an app client.
  *
  * Usage: npm run verify
  * Creates 3 throwaway users (verify-*@example.com). Clean them up afterwards
  * in SQL: delete from auth.users where email like 'verify-%@example.com';
+ *
+ * Audit F16: prefer a separate STAGING project. Set
+ *   VERIFY_SUPABASE_URL / VERIFY_SUPABASE_ANON_KEY
+ * to point the script at staging; VITE_SUPABASE_* (the app defaults) are
+ * only used as a fallback, and hitting the production project requires
+ * the explicit opt-in ALLOW_PROD_VERIFY=1. Creating a staging project is
+ * a MANUAL STEP (see AUDIT.md): free plan allows 2 active projects.
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
@@ -21,9 +28,15 @@ function loadEnv() {
 }
 
 const env = loadEnv()
-const SUPABASE_URL = env.VITE_SUPABASE_URL
-const KEY = env.VITE_SUPABASE_ANON_KEY
-if (!SUPABASE_URL || !KEY) { console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY'); process.exit(2) }
+const SUPABASE_URL = env.VERIFY_SUPABASE_URL || env.VITE_SUPABASE_URL
+const KEY = env.VERIFY_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY
+if (!SUPABASE_URL || !KEY) { console.error('Missing VERIFY_SUPABASE_URL / VERIFY_SUPABASE_ANON_KEY (or VITE_ fallbacks)'); process.exit(2) }
+const PROD_REF = 'eslatwgowmovfkkddcnp'
+if (SUPABASE_URL.includes(PROD_REF) && env.ALLOW_PROD_VERIFY !== '1') {
+  console.error(`Refusing to run against the production project (${PROD_REF}).`)
+  console.error('Point VERIFY_SUPABASE_* at a staging project, or set ALLOW_PROD_VERIFY=1 to override.')
+  process.exit(2)
+}
 
 const rand = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
 const password = 'Verify!2345abcd'
@@ -93,8 +106,16 @@ const { error: cInsertErr } = await C.client.from('messages').insert({
 })
 check('C cannot post into A-B conversation (RLS)', Boolean(cInsertErr))
 
-const { data: cProfilePeek } = await C.client.from('profiles').select('*').eq('id', A.id)
+const { data: cProfilePeek } = await C.client.from('profiles')
+  .select('id, username, display_name, created_at, e2e_identity_key, last_seen_public').eq('id', A.id)
 check('C cannot read A profile without shared conversation', (cProfilePeek ?? []).length === 0)
+
+// Audit F2: last_seen_at must not be client-readable at the column level,
+// and get_presence must stay empty for users sharing no conversation.
+const { error: cLastSeenErr } = await C.client.from('profiles').select('last_seen_at').eq('id', A.id)
+check('C cannot select last_seen_at (column grant removed)', Boolean(cLastSeenErr))
+const { data: cPresence } = await C.client.rpc('get_presence', { p_user: A.id })
+check('get_presence empty without shared conversation', (cPresence ?? []).length === 0)
 
 const { data: cList } = await C.client.rpc('list_conversations')
 check('C conversation list does not include A-B DM', !(cList ?? []).some((c) => c.id === convId))

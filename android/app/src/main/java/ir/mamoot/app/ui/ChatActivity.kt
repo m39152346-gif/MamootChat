@@ -734,15 +734,15 @@ class ChatActivity : Activity() {
             .setTitle("حذف از گروه؟")
             .setMessage("«${member.displayName}» از گروه حذف می‌شود و دیگر به پیام‌ها دسترسی ندارد.")
             .setPositiveButton("حذف") { _, _ ->
-                io.execute {
+                Threads.runIo {
                     val result = runCatching { app.api.removeGroupMember(conv.id, member.id) }
-                    ui.post {
-                        if (isFinishing || isDestroyed) return@post
+                    Threads.runUi {
+                        if (isFinishing) return@runUi
                         result.onSuccess {
-                            toast("عضو حذف شد")
-                            enrichConversation(silent = true)
-                        }.onFailure {
-                            toast((it as? ir.mamoot.app.net.ApiException)?.userMessage ?: "خطا در حذف عضو")
+                            Toast.makeText(this, "عضو حذف شد", Toast.LENGTH_SHORT).show()
+                            enrichConversationFromServer()
+                        }.onFailure { e ->
+                            Toast.makeText(this, e.message ?: "خطا در حذف عضو", Toast.LENGTH_LONG).show()
                         }
                     }
                 }

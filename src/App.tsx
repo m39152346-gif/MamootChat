@@ -1,305 +1,134 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import { useEffect, useState } from 'react'
 import { configMissing, supabase } from './lib/supabase'
-import { fetchMyProfile, createProfile, listConversations } from './lib/api'
-import type { ConversationSummary, Profile } from './lib/types'
-import { AuthScreen, PENDING_PROFILE_KEY, ResetPasswordScreen } from './components/AuthScreen'
-import { ProfileSetup } from './components/ProfileSetup'
-import { ConversationList } from './components/ConversationList'
-import { ChatWindow } from './components/ChatWindow'
-import { NewChatModal } from './components/NewChatModal'
-import { SettingsModal } from './components/SettingsModal'
+import { ForgotPasswordForm, ResetPasswordScreen } from './components/ResetScreens'
 
-interface PendingProfile {
-  username: string
-  display_name: string
+// Audit F17: the public website is no longer a chat client. Chat lives in
+// the Android app only; this static site exists for the app download,
+// password recovery (the redirect target for reset emails), and the
+// legal pages. No chat code ships to browsers anymore.
+
+const APK_URL =
+  'https://raw.githubusercontent.com/m39152346-gif/MamootChat/apk-latest/mamoot.apk'
+const PRIVACY_FULL =
+  'https://github.com/m39152346-gif/MamootChat/blob/main/docs/PRIVACY.md'
+const TERMS_FULL =
+  'https://github.com/m39152346-gif/MamootChat/blob/main/docs/TERMS.md'
+
+type Page = 'home' | 'reset' | 'privacy' | 'terms' | 'recovery'
+
+function pageFromPath(pathname: string): Page {
+  if (pathname.startsWith('/reset')) return 'reset'
+  if (pathname.startsWith('/privacy')) return 'privacy'
+  if (pathname.startsWith('/terms')) return 'terms'
+  return 'home'
 }
 
-function readPendingProfile(): PendingProfile | null {
-  try {
-    const raw = localStorage.getItem(PENDING_PROFILE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as PendingProfile
-    return parsed.username && parsed.display_name ? parsed : null
-  } catch {
-    return null
-  }
+function LegalShell({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="auth-page">
+      <div className="auth-card" style={{ maxWidth: 720, textAlign: 'start' }}>
+        <h1>{title}</h1>
+        <div className="legal-text">{children}</div>
+        <p className="auth-sub" style={{ marginTop: 20 }}>
+          <a href="/">← بازگشت به صفحه اصلی</a>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Privacy() {
+  return (
+    <LegalShell title="حریم خصوصی مموت">
+      <p>خلاصه فارسی؛ متن کامل و رسمی: <a href={PRIVACY_FULL}>docs/PRIVACY.md</a></p>
+      <ul>
+        <li>پیام‌های «چت امن» 🔒 با رمزنگاری سرتاسری روی دو گوشی رمز می‌شوند؛ سرور فقط متن رمز و ابردادهٔ حداقلی (فرستنده، گفتگو، زمان) را می‌بیند و پاسخ/بازارسال/واکنش داخل چت امن هم جزئی از همان متن رمز است.</li>
+        <li>گفتگوهای عادی و گروهی برای همگام‌سازی روی سرور به‌صورت خوانا نگه داشته می‌شوند (با TLS و کنترل دسترسی سطح ردیف؛ فقط اعضای گفتگو می‌خوانند).</li>
+        <li>روی سرور نگه می‌داریم: ایمیل و هش گذرواژه (سرویس احراز هویت)، نام کاربری و نام نمایشی، کلید عمومی هویت، زمان آخرین فعالیت، وضعیت خواندن پیام، واکنش‌های چت عادی، فهرست مسدودی‌ها و گزارش‌هایی که خودتان می‌فرستید.</li>
+        <li>مخفی‌کردن «آخرین بازدید» را سرور اعمال می‌کند: زمان خام آخرین فعالیت برای هیچ کاربر دیگری خوانا نیست.</li>
+        <li>نگهداری: متن پیام حذف‌شده فوراً از سرور پاک می‌شود و ردّ خالی آن حداکثر ۳۰ روز بعد حذف کامل می‌شود. متن رمز چت امن که همه خوانده‌اند، ۳۰ روز پس از ارسال از سرور حذف کامل می‌شود (نسخهٔ خوانا روی گوشی‌تان می‌ماند). پیام‌های عادی تا حذف شما یا حذف حساب می‌مانند.</li>
+        <li>حذف حساب از داخل برنامه، حساب و همهٔ پیام‌هایتان را برای همیشه پاک می‌کند. خروجی داده و پشتیبان رمزنگاری‌شده (PBKDF2 با ۶۰۰هزار تکرار + AES-256-GCM) از داخل برنامه در دسترس است.</li>
+        <li>مموت تبلیغ، ابزار ردیابی/آمار شخص ثالث و فروش داده ندارد و به Google Play Services وابسته نیست.</li>
+      </ul>
+    </LegalShell>
+  )
+}
+
+function Terms() {
+  return (
+    <LegalShell title="شرایط استفاده از مموت">
+      <p>خلاصهٔ فارسی؛ متن کامل و رسمی: <a href={TERMS_FULL}>docs/TERMS.md</a></p>
+      <ul>
+        <li>چت امن به یک گوشی برای هر حساب وابسته است. سرویس رایگان و «همان‌طور که هست» ارائه می‌شود و دسترسی همیشگی تضمین نمی‌شود.</li>
+        <li>مسئولیت گذرواژهٔ حساب، رمز قفل برنامه و گذرواژهٔ پشتیبان با شماست؛ کلیدهای چت امن را هیچ‌کس — از جمله ما — نمی‌تواند بازیابی کند.</li>
+        <li>اسپم، کلاهبرداری، آزار، جعل هویت، محتوای غیرقانونی و تلاش برای دورزدن امنیت سرویس ممنوع است. برای نگه‌داشتن سرویس رایگان، محدودیت‌های خودکار نرخ (مثل سقف ساخت گفتگوی تازه و جست‌وجو در روز) اعمال می‌شود و تغییر اعضای گروه فقط دست سازندهٔ گروه است.</li>
+        <li>حساب متخلف ممکن است محدود یا حذف شود. محتوای چت امن به‌خاطر رمزنگاری سرتاسری قابل بررسی نیست، ولی گزارش‌های تکراری دربارهٔ یک حساب می‌تواند به محدودیت منجر شود.</li>
+        <li>پیام‌ها متعلق به خودتان‌اند؛ سرور طبق سند حریم خصوصی آن‌ها را نگه می‌دارد و تحویل می‌دهد. حذف حساب، پیام‌ها را برای همیشه پاک می‌کند.</li>
+      </ul>
+    </LegalShell>
+  )
+}
+
+function Home() {
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo" aria-hidden="true">💬</div>
+        <h1>مموت</h1>
+        <p className="auth-sub">
+          پیام‌رسان متنی سریع و امن برای اندروید — چت عادی و «چت امن» با رمزنگاری
+          سرتاسری مثل چت مخفی تلگرام. فقط متن، بدون حاشیه، بدون تبلیغ و ردیابی.
+        </p>
+        <a className="btn btn-primary btn-block" href={APK_URL}>
+          ⬇️ دانلود برنامه اندروید (APK)
+        </a>
+        <p className="auth-sub" style={{ marginTop: 12 }}>
+          گفتگو فقط داخل برنامه انجام می‌شود؛ این وب‌سایت نسخهٔ وب ندارد و فقط برای
+          دانلود برنامه و بازیابی رمز عبور است.
+        </p>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
+          <a href="/reset">بازیابی رمز عبور</a>
+          <a href="/privacy">حریم خصوصی</a>
+          <a href="/terms">شرایط استفاده</a>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [booting, setBooting] = useState(true)
-  const [profileLoading, setProfileLoading] = useState(false)
-  const [recovery, setRecovery] = useState(false)
+  const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname))
 
-  const [conversations, setConversations] = useState<ConversationSummary[]>([])
-  const [conversationsLoading, setConversationsLoading] = useState(false)
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
-  const [typingByConv, setTypingByConv] = useState<Record<string, boolean>>({})
-  const [showNewChat, setShowNewChat] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [showChatOnMobile, setShowChatOnMobile] = useState(false)
-
-  const refreshTimer = useRef<number | undefined>(undefined)
-  const activeIdRef = useRef<string | null>(null)
-  activeIdRef.current = activeId
-
-  const refreshConversations = useCallback(async () => {
-    try {
-      const rows = await listConversations()
-      setConversations(rows)
-    } catch {
-      /* transient: keep last good list */
-    }
-  }, [])
-
-  const refreshConversationsDebounced = useCallback(() => {
-    window.clearTimeout(refreshTimer.current)
-    refreshTimer.current = window.setTimeout(() => void refreshConversations(), 300)
-  }, [refreshConversations])
-
-  // ---- auth session
   useEffect(() => {
-    let mounted = true
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (!mounted) return
-        setSession(data.session)
-        setUser(data.session?.user ?? null)
-      })
-      .finally(() => mounted && setBooting(false))
-
-    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
-      setSession(nextSession)
-      setUser(nextSession?.user ?? null)
-      if (!nextSession) {
-        setProfile(null)
-        setConversations([])
-        setActiveId(null)
-        setOnlineIds(new Set())
-      }
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setPage('recovery')
     })
-    return () => {
-      mounted = false
-      sub.subscription.unsubscribe()
-    }
+    return () => data.subscription.unsubscribe()
   }, [])
-
-  // ---- my profile (create from pending signup data when possible)
-  useEffect(() => {
-    if (!user) return
-    let cancelled = false
-    setProfileLoading(true)
-    ;(async () => {
-      try {
-        let mine = await fetchMyProfile(user.id)
-        if (!mine) {
-          const pending = readPendingProfile()
-          if (pending) {
-            try {
-              mine = await createProfile(user.id, pending.username, pending.display_name)
-              localStorage.removeItem(PENDING_PROFILE_KEY)
-            } catch {
-              // e.g. username taken in the meantime: fall back to the setup screen.
-              mine = null
-            }
-          }
-        }
-        if (!cancelled) setProfile(mine)
-      } catch {
-        if (!cancelled) setProfile(null)
-      } finally {
-        if (!cancelled) setProfileLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [user])
-
-  // ---- conversations + global realtime inbox + presence
-  useEffect(() => {
-    if (!profile) return
-    let cancelled = false
-    setConversationsLoading(true)
-    listConversations()
-      .then((rows) => !cancelled && setConversations(rows))
-      .catch(() => undefined)
-      .finally(() => !cancelled && setConversationsLoading(false))
-
-    const inbox = supabase
-      .channel('mamootchat-inbox')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () =>
-        refreshConversationsDebounced(),
-      )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () =>
-        refreshConversationsDebounced(),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'conversation_members', filter: `user_id=eq.${profile.id}` },
-        () => refreshConversationsDebounced(),
-      )
-      .subscribe()
-
-    const presence = supabase.channel('mamootchat-online', {
-      config: { presence: { key: profile.id } },
-    })
-    presence
-      .on('presence', { event: 'sync' }, () => {
-        setOnlineIds(new Set(Object.keys(presence.presenceState())))
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          void presence.track({ user_id: profile.id, online_at: new Date().toISOString() })
-        }
-      })
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshConversationsDebounced()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-
-    return () => {
-      cancelled = true
-      document.removeEventListener('visibilitychange', onVisible)
-      void supabase.removeChannel(inbox)
-      void supabase.removeChannel(presence)
-    }
-  }, [profile, refreshConversationsDebounced])
-
-  const handleSelect = useCallback((id: string) => {
-    setActiveId(id)
-    setShowChatOnMobile(true)
-    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
-  }, [])
-
-  const handleMarkedRead = useCallback((id: string) => {
-    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
-  }, [])
-
-  const handleTypingChange = useCallback((id: string, typing: boolean) => {
-    setTypingByConv((prev) => (prev[id] === typing ? prev : { ...prev, [id]: typing }))
-  }, [])
-
-  async function logout() {
-    await supabase.auth.signOut()
-    setShowSettings(false)
-  }
-
-  function handleCreated(id: string) {
-    void refreshConversations().then(() => handleSelect(id))
-  }
-
-  function handleLeft(id: string) {
-    setConversations((prev) => prev.filter((c) => c.id !== id))
-    if (activeIdRef.current === id) {
-      setActiveId(null)
-      setShowChatOnMobile(false)
-    }
-    refreshConversationsDebounced()
-  }
 
   if (configMissing) {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h1>پیکربندی ناقص است</h1>
-          <p className="auth-sub">
-            متغیرهای محیطی <code dir="ltr">VITE_SUPABASE_URL</code> و <code dir="ltr">VITE_SUPABASE_ANON_KEY</code> تنظیم نشده‌اند.
-            فایل <code dir="ltr">.env.example</code> را ببینید.
+          <h1>مموت</h1>
+          <p className="alert alert-error" role="alert">
+            پیکربندی سرویس در این نمونه کامل نیست.
           </p>
         </div>
       </div>
     )
   }
 
-  if (booting || (session && profileLoading)) {
-    return (
-      <div className="boot-screen" role="status" aria-label="در حال بارگذاری">
-        <div className="boot-logo" aria-hidden="true">💬</div>
-        <span>مموت…</span>
-      </div>
-    )
+  switch (page) {
+    case 'recovery':
+      return <ResetPasswordScreen onDone={() => undefined} />
+    case 'reset':
+      return <ForgotPasswordForm />
+    case 'privacy':
+      return <Privacy />
+    case 'terms':
+      return <Terms />
+    default:
+      return <Home />
   }
-
-  if (recovery && session) {
-    return <ResetPasswordScreen onDone={() => setRecovery(false)} />
-  }
-
-  if (!session || !user) return <AuthScreen />
-
-  if (!profile) {
-    return (
-      <ProfileSetup
-        userId={user.id}
-        initial={readPendingProfile()}
-        onReady={setProfile}
-        onLogout={() => void logout()}
-      />
-    )
-  }
-
-  const activeConv = conversations.find((c) => c.id === activeId) ?? null
-
-  return (
-    <div className={`app ${showChatOnMobile && activeConv ? 'chat-open' : ''}`}>
-      <ConversationList
-        conversations={conversations}
-        activeId={activeId}
-        myProfile={profile}
-        onlineIds={onlineIds}
-        typingByConv={typingByConv}
-        loading={conversationsLoading}
-        onSelect={handleSelect}
-        onNewChat={() => setShowNewChat(true)}
-        onOpenSettings={() => setShowSettings(true)}
-      />
-
-      <main className="main-pane">
-        {activeConv ? (
-          <ChatWindow
-            key={activeConv.id}
-            conv={activeConv}
-            myProfile={profile}
-            onlineIds={onlineIds}
-            onBack={() => setShowChatOnMobile(false)}
-            onMarkedRead={handleMarkedRead}
-            onTypingChange={handleTypingChange}
-            onRefreshConversations={refreshConversationsDebounced}
-            onLeft={handleLeft}
-          />
-        ) : (
-          <div className="welcome-pane">
-            <div className="welcome-emoji" aria-hidden="true">💬</div>
-            <h2>به مموت خوش آمدید</h2>
-            <p>یک گفتگو را از فهرست انتخاب کنید، یا یک گفتگوی تازه شروع کنید.</p>
-            <button type="button" className="btn btn-primary" onClick={() => setShowNewChat(true)}>
-              گفتگوی جدید
-            </button>
-            <p className="welcome-note">فقط متن؛ سریع و امن. بدون عکس، بدون فایل، بدون شلوغی.</p>
-          </div>
-        )}
-      </main>
-
-      {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} onCreated={handleCreated} />}
-      {showSettings && (
-        <SettingsModal
-          profile={profile}
-          email={user.email ?? ''}
-          onClose={() => setShowSettings(false)}
-          onSaved={(p) => {
-            setProfile(p)
-            refreshConversationsDebounced()
-          }}
-          onLogout={() => void logout()}
-        />
-      )}
-    </div>
-  )
 }
