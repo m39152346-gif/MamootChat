@@ -433,7 +433,7 @@ class ChatActivity : Activity() {
                 layoutBanner.visibility = View.VISIBLE
                 tvBannerText.text = "این گفتگوی عادی است. برای اینکه فقط خودتان دو نفر پیام‌ها را بخوانید، چت امن را فعال کنید."
                 btnBannerAction.visibility = View.VISIBLE
-                btnBannerAction.text = "🔐 فعال‌سازی چت امن"
+                btnBannerAction.text = "فعال‌سازی چت امن"
                 btnBannerAction.setOnClickListener { startSecret() }
             }
             state == SessionUiState.WAITING_PEER -> {
@@ -458,12 +458,12 @@ class ChatActivity : Activity() {
     }
 
     private fun sessionStatusText(): String = when (currentState) {
-        SessionUiState.READY -> "🔒 چت امن فعال — رمزنگاری سرتاسری"
+        SessionUiState.READY -> "چت امن فعال — رمزنگاری سرتاسری"
         SessionUiState.GROUP_PLAIN -> "گروه — بدون رمزنگاری سرتاسری"
         SessionUiState.WAITING_PEER -> "در انتظار پذیرش چت امن… (فعلاً عادی)"
         SessionUiState.NO_SESSION -> "گفتگوی عادی"
         SessionUiState.PEER_NO_KEY -> "گفتگوی عادی — مخاطب اپ را فعال نکرده است"
-        SessionUiState.PEER_KEY_CHANGED -> "⚠️ کلید مخاطب عوض شده است"
+        SessionUiState.PEER_KEY_CHANGED -> "کلید مخاطب عوض شده است"
     }
 
     private fun refreshStatusLine() {
@@ -471,7 +471,7 @@ class ChatActivity : Activity() {
         tvChatStatus.text = when {
             conv.kind == "group" -> base
             peerTypingNow -> "در حال نوشتن…" +
-                if (currentState == SessionUiState.READY) " · 🔒" else ""
+                if (currentState == SessionUiState.READY) " · امن" else ""
             else -> {
                 val presence = UiUtil.presenceText(peerLastSeenAtStr, peerLastSeenPublicFlag)
                 if (presence.isEmpty()) base else "$base · $presence"
@@ -711,7 +711,7 @@ class ChatActivity : Activity() {
             ""
         }
         val builder = AlertDialog.Builder(this)
-            .setTitle("امنیت گفتگو 🔒")
+            .setTitle("امنیت گفتگو")
             .setMessage(message)
             .setPositiveButton("بستن", null)
         when (currentState) {
@@ -723,7 +723,7 @@ class ChatActivity : Activity() {
                 builder.setNegativeButton("بازنشانی نشست امن") { _, _ -> confirmResetSecret() }
             }
             SessionUiState.NO_SESSION -> {
-                builder.setNegativeButton("🔐 فعال‌سازی چت امن") { _, _ -> startSecret() }
+                builder.setNegativeButton("فعال‌سازی چت امن") { _, _ -> startSecret() }
             }
             else -> Unit
         }
@@ -756,14 +756,14 @@ class ChatActivity : Activity() {
                 val text = buildString {
                     append("$name\n@$username\n\n")
                     if (presence.isNotEmpty()) append("$presence\n")
-                    append(if (hasKey) "🔒 این کاربر از چت امن مموت پشتیبانی می‌کند.\n" else "این کاربر هنوز اپ اندروید مموت را فعال نکرده است.\n")
-                    append(if (blocked) "\n🚫 شما این کاربر را مسدود کرده‌اید." else "")
+                    append(if (hasKey) "این کاربر از چت امن مموت پشتیبانی می‌کند.\n" else "این کاربر هنوز اپ اندروید مموت را فعال نکرده است.\n")
+                    append(if (blocked) "\nشما این کاربر را مسدود کرده‌اید." else "")
                 }
                 AlertDialog.Builder(this)
                     .setTitle("پروفایل مخاطب")
                     .setMessage(text)
                     .setPositiveButton("بستن", null)
-                    .setNeutralButton("امنیت گفتگو 🔒") { _, _ -> showSecurityDialog() }
+                    .setNeutralButton("امنیت گفتگو") { _, _ -> showSecurityDialog() }
                     .setNegativeButton(if (blocked) "رفع مسدودیت" else "مسدود کردن") { _, _ ->
                         setBlocked(!blocked)
                     }
@@ -816,8 +816,8 @@ class ChatActivity : Activity() {
     private fun promptManageMembers() {
         val me = app.api.myUserId
         val removable = conv.members.filter { it.id != me && it.role != "owner" }
-        val labels = arrayOf("➕ افزودن عضو جدید") +
-            removable.map { "❌ حذف ${it.displayName} (@${it.username})" }.toTypedArray()
+        val labels = arrayOf("افزودن عضو جدید") +
+            removable.map { "حذف ${it.displayName} (@${it.username})" }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("مدیریت اعضا")
             .setItems(labels) { _, which ->
@@ -1021,10 +1021,10 @@ class ChatActivity : Activity() {
         val options = mutableListOf<String>()
         if (msg.status == "failed") options.add("تلاش دوباره")
         val interactive = !msg.deleted && !msg.expired && msg.serverId != null
-        if (interactive && msg.text != null) options.add("↩ پاسخ")
-        if (interactive && (!msg.encrypted || currentState == SessionUiState.READY)) options.add("واکنش ❤")
-        if (!msg.deleted && !msg.expired && !msg.text.isNullOrEmpty()) options.add("↪ بازارسال")
-        if (!msg.mine && msg.senderId.isNotEmpty()) options.add("گزارش کاربر 🚩")
+        if (interactive && msg.text != null) options.add("پاسخ")
+        if (interactive && (!msg.encrypted || currentState == SessionUiState.READY)) options.add("واکنش")
+        if (!msg.deleted && !msg.expired && !msg.text.isNullOrEmpty()) options.add("بازارسال")
+        if (!msg.mine && msg.senderId.isNotEmpty()) options.add("گزارش کاربر")
         if (msg.mine && !msg.deleted && !msg.expired && msg.serverId != null &&
             (!msg.encrypted || currentState == SessionUiState.READY)
         ) {
@@ -1038,10 +1038,10 @@ class ChatActivity : Activity() {
         AlertDialog.Builder(this)
             .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
-                    "↩ پاسخ" -> setReplyTarget(msg)
-                    "واکنش ❤" -> showReactionPicker(msg)
-                    "↪ بازارسال" -> showForwardPicker(msg)
-                    "گزارش کاربر 🚩" -> showReportDialog(msg)
+                    "پاسخ" -> setReplyTarget(msg)
+                    "واکنش" -> showReactionPicker(msg)
+                    "بازارسال" -> showForwardPicker(msg)
+                    "گزارش کاربر" -> showReportDialog(msg)
                     "کپی متن" -> {
                         val clipboard = getSystemService(ClipboardManager::class.java)
                         clipboard?.setPrimaryClip(ClipData.newPlainText("mamoot", msg.text ?: ""))
@@ -1088,11 +1088,21 @@ class ChatActivity : Activity() {
         val input = EditText(this).apply {
             setText(initial)
             this.hint = hint
+            setTextColor(getColor(R.color.text))
+            setHintTextColor(getColor(R.color.text2))
+            textSize = 16f
             setSelection(text?.length ?: 0)
+        }
+        // Dialogs need the same insets as the rest of the design system;
+        // a bare setView(input) glued the field to the dialog edges.
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(UiUtil.dp(this@ChatActivity, 24), UiUtil.dp(this@ChatActivity, 8), UiUtil.dp(this@ChatActivity, 24), 0)
+            addView(input)
         }
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setView(input)
+            .setView(box)
             .setNegativeButton("لغو", null)
             .setPositiveButton("تأیید") { _, _ -> onOk(input.text.toString()) }
             .show()

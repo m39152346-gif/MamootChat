@@ -10,9 +10,9 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="16dp"
+        android:paddingStart="@dimen/space_l"
         android:paddingTop="11dp"
-        android:paddingEnd="16dp"
+        android:paddingEnd="@dimen/space_l"
         android:paddingBottom="11dp">
 
         <FrameLayout
@@ -26,7 +26,7 @@
                 android:background="@drawable/avatar_circle"
                 android:gravity="center"
                 android:textColor="@color/white"
-                android:textSize="18sp"
+                android:textSize="@dimen/text_title"
                 android:textStyle="bold" />
 
             <View
@@ -41,7 +41,7 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="@dimen/space_m"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -58,16 +58,16 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:textColor="@color/text"
-                    android:textSize="16sp"
+                    android:textSize="@dimen/text_body"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/space_s"
                     android:textColor="@color/text2"
-                    android:textSize="12.5sp" />
+                    android:textSize="@dimen/text_caption" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -76,7 +76,7 @@
                     android:importantForAccessibility="no"
                     android:text="‹"
                     android:textColor="@color/text2"
-                    android:textSize="17sp" />
+                    android:textSize="@dimen/text_title" />
             </LinearLayout>
 
             <LinearLayout
@@ -92,16 +92,17 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:ellipsize="end"
+                    android:textDirection="firstStrong"
                     android:lineSpacingMultiplier="1.15"
                     android:maxLines="2"
                     android:textColor="@color/text2"
-                    android:textSize="14sp" />
+                    android:textSize="@dimen/text_body_s" />
 
                 <TextView
                     android:id="@+id/tvUnread"
                     android:layout_width="wrap_content"
                     android:layout_height="20dp"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/space_s"
                     android:layout_marginTop="2dp"
                     android:background="@drawable/badge_bg"
                     android:gravity="center"
@@ -109,7 +110,7 @@
                     android:paddingStart="6dp"
                     android:paddingEnd="6dp"
                     android:textColor="@color/white"
-                    android:textSize="11.5sp"
+                    android:textSize="@dimen/text_caption"
                     android:textStyle="bold"
                     android:visibility="gone" />
             </LinearLayout>

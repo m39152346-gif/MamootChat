@@ -6,6 +6,7 @@ import android.app.ProgressDialog
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
+import ir.mamoot.app.util.UiUtil
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -67,10 +68,15 @@ class RecoveryActivity : Activity() {
     private fun promptPassphrase(blob: String) {
         val pass = EditText(this).apply {
             hint = "گذرواژه پشتیبان"
+            // Never echo a backup passphrase in clear text while typing.
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setTextColor(getColor(R.color.text))
+            setHintTextColor(getColor(R.color.text2))
+            textSize = 16f
         }
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 0)
+            setPadding(UiUtil.dp(this@RecoveryActivity, 24), UiUtil.dp(this@RecoveryActivity, 12), UiUtil.dp(this@RecoveryActivity, 24), 0)
             addView(pass)
         }
         AlertDialog.Builder(this)

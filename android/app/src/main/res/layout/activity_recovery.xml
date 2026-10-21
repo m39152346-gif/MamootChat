@@ -14,7 +14,7 @@
         <ImageView
             android:layout_width="76dp"
             android:layout_height="76dp"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="@dimen/space_xxl"
             android:background="@drawable/logo_circle"
             android:contentDescription="@null"
             android:importantForAccessibility="no"
@@ -25,37 +25,37 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="@dimen/space_l"
             android:gravity="center"
-            android:text="کلید رمزنگاری این گوشی خوانده نشد"
+            android:text="@string/recovery_view0_text"
             android:textColor="@color/text"
-            android:textSize="19sp"
+            android:textSize="@dimen/text_headline"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="کلید هویت چت‌های امن روی این دستگاه هست اما دیگر قابل خواندن نیست (مثلاً بعد از تغییر قفل صفحه یا خرابی حافظه امن). مموت کلید را خودکار عوض نمی‌کند؛ اول شما تصمیم بگیرید:\n\n• اگر فایل «پشتیبان رمزنگاری‌شده» دارید: با همان فایل بازیابی کنید تا همان کلید و تاریخچه برگردد.\n\n• اگر پشتیبان ندارید: می‌توانید کلید تازه بسازید. در این صورت چت‌های امن قبلی روی این گوشی دیگر باز نمی‌شوند و مخاطب‌ها باید کلید تازه شما را ببینند و بپذیرند."
+            android:layout_marginTop="@dimen/space_m"
+            android:text="@string/recovery_view1_text"
             android:textColor="@color/text2"
-            android:textSize="14sp" />
+            android:textSize="@dimen/text_body_s" />
 
         <Button
             android:id="@+id/btnRecoverBackup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="@dimen/space_xxl"
             android:backgroundTint="@color/brand_button"
-            android:text="بازیابی از فایل پشتیبان"
+            android:text="@string/recovery_btnrecoverbackup_text"
             android:textColor="@color/white" />
 
         <Button
             android:id="@+id/btnRecoverNewKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="@dimen/space_m"
             android:backgroundTint="@color/danger_button"
-            android:text="ساخت کلید تازه و ادامه"
+            android:text="@string/recovery_btnrecovernewkey_text"
             android:textColor="@color/white" />
     </LinearLayout>
 </ScrollView>

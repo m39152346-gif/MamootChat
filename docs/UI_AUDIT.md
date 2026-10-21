@@ -131,3 +131,60 @@ compatibility ≤7 and no criterion is scored 10; anything not executed is
 layouts, `UiUtil`, `Adapters`, `ChatActivity`, `MainActivity`, `AuthActivity`,
 version bump, this document and `docs/audit/*`. No backend, crypto, sync,
 database or wire-format file was touched.
+
+---
+
+## Round 2 — v0.5.2 (2026-10-21): closing the documented backlog
+
+Baseline: v0.5.1 `33efe8e` (`docs/audit/BASELINE-0.5.1-round2.txt`). Same rules:
+computed/scripted evidence only, no on-device claims, caps unchanged.
+
+### New defects found and fixed
+
+| ID | Sev | Evidence (0.5.1) | Fix (0.5.2) |
+|----|-----|------------------|-------------|
+| D21 | H | Recovery backup-passphrase dialog used a plain text `EditText` — the passphrase echoed **in clear text** while typing | proper password input type (crypto behavior unchanged) |
+| D22 | M | Programmatic dialog fields (Chat prompt, Recovery, Settings `field()`) had no token colors; dialog paddings were raw **pixels** (48px, 56px — density-dependent); the chat prompt field was glued to the dialog edges | token text/hint colors, 16sp, padded containers, `UiUtil.dp()` for all programmatic spacing |
+| D23 | M | Emoji still acted as list/menu icons in Kotlin-built dialogs (advanced-security items, message actions, member management, dialog titles) and TalkBack read symbol names before every label | emoji removed from all control labels/titles/list items (text-matched menu entries updated at both sites). Kept by design: reaction emojis (the feature itself), ✓/✓✓ ticks, the per-message 🔒 meta mark (announced as "locked", and it is the only per-message E2EE indicator in mixed normal/secret conversations), emoji inside user-facing *explanatory paragraphs* |
+| D24 | M | Message meta: "sending" was emoji-only (🕐), TTL was symbol-only (⏱) — meaning carried by glyph alone | words: «در حال ارسال», «ارسال نشد», «حذف خودکار», «بازارسال‌شده» |
+| D25 | M | Mixed-direction content: Latin messages/usernames in RTL bubbles aligned as RTL; email/username fields typed in an RTL field | `textDirection="firstStrong"` on bubble, preview, chat title, user name; `textDirection="ltr"` on email/username inputs (component-level, page direction untouched) |
+| D26 | L | 85 hardcoded strings in layouts; 19 text sizes incl. fractions; padding/radius literals | **all layout strings migrated** to `strings.xml` (66 unique keys, map in `docs/audit/strings-migration-0.5.2.txt`; only the ‹ / ● / م glyphs remain literal — symbols, not copy). Type scale completed (`text_label`, `text_subtitle` added from real usage) and applied to every layout text size except the decorative typing dots; value-equal spacing/radius literals tokenized |
+| D27 | L | Borderless text buttons (forgot-password, retry, biometric…) relied on OEM theme min-height | explicit `minHeight=@dimen/touch_min` (48dp) |
+| D28 | L | `list_item_in` ran 280ms | 240ms (all motion now in the 160–250ms band; reduced-motion gates from D16 apply) |
+
+### Re-verified, unchanged from round 1
+
+Contrast tokens untouched (round-1 computation stands, 36/36) · touch targets
+still 48dp · no backend/crypto/sync file touched · XML parse (79) + reference
+resolution (incl. the new `@string/` refs) + `R.id` cross-check all clean ·
+CI (unit tests + release build) on the release commit, result in the PR comment.
+
+### Scores after round 2 (same weights, same caps)
+
+| Screen | 0.5.0 | 0.5.1 | 0.5.2 | Round-2 movers |
+|--------|-------|-------|-------|----------------|
+| Main | 6.84 | 8.09 | 8.17 | spacing tokens |
+| Chat | 6.55 | 8.09 | 8.32 | type scale, firstStrong, spacing |
+| NewChat | 7.01 | 7.85 | 7.93 | spacing tokens |
+| Auth | 6.66 | 7.88 | 8.11 | LTR fields, type scale, spacing |
+| Settings | 7.40 | 7.99 | 8.14 | emoji-free dialogs, spacing |
+| Lock | 6.54 | 7.46 | 7.54 | spacing |
+| Recovery | 6.54 | 7.46 | 7.64 | masked passphrase (D21), spacing |
+| **Mean** | **6.79** | **7.83** | **7.98** | |
+
+### Still open (unchanged honesty)
+
+1. ~369 Persian string literals remain in Kotlin UI code (dialogs, toasts,
+   dynamic status copy). Layouts are fully migrated; the Kotlin half needs a
+   dedicated, carefully-reviewed pass (hundreds of call sites, several matched
+   by string equality) — deliberately not crammed into a UI-polish release.
+2. 139 padding/margin literals use off-scale values (6/10/14dp…). Tokenizing
+   them 1:1 is impossible without changing the scale or the pixels; they are
+   counted, not hidden.
+3. Edge-to-edge remains on the documented temporary opt-out (D15). The real
+   WindowInsets migration needs a physical device to verify per-screen
+   (hero/composer under transparent bars); shipping it blind risks breaking
+   every screen, so it stays a planned, device-gated task before targetSdk 36.
+4. Phase 10 (real screenshots: TalkBack order, 1.3× font, small screens,
+   Android 15, OEM icon masks) is still not executable in this environment —
+   scores remain capped and these items **unverified**.

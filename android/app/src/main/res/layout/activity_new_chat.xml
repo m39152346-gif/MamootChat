@@ -11,16 +11,16 @@
         android:background="@color/surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="4dp"
-        android:paddingEnd="12dp">
+        android:paddingStart="@dimen/space_xs"
+        android:paddingEnd="@dimen/space_m">
 
         <ImageButton
             android:id="@+id/btnBackNew"
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="@dimen/space_s"
             android:background="@drawable/icon_circle_bg"
-            android:contentDescription="بازگشت"
+            android:contentDescription="@string/chat_btnback_desc"
             android:padding="14dp"
             android:src="@drawable/ic_chevron_rtl"
             android:tint="@color/brand" />
@@ -28,21 +28,21 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="گفتگوی جدید"
+            android:text="@string/main_btnnewchat_desc"
             android:textColor="@color/text"
-            android:textSize="18sp"
+            android:textSize="@dimen/text_title"
             android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="@dimen/space_l"
+        android:layout_marginTop="@dimen/space_m"
+        android:layout_marginEnd="@dimen/space_l"
         android:background="@drawable/segmented_bg"
         android:orientation="horizontal"
-        android:padding="4dp">
+        android:padding="@dimen/space_xs">
 
         <Button
             android:id="@+id/btnNewModeDm"
@@ -50,7 +50,7 @@
             android:layout_width="0dp"
             android:layout_height="@dimen/touch_min"
             android:layout_weight="1"
-            android:text="گفتگوی خصوصی"
+            android:text="@string/newchat_btnnewmodedm_text"
             android:textColor="@color/text"
             android:textStyle="bold" />
 
@@ -60,7 +60,7 @@
             android:layout_width="0dp"
             android:layout_height="@dimen/touch_min"
             android:layout_weight="1"
-            android:text="ساخت گروه"
+            android:text="@string/newchat_btnnewmodegroup_text"
             android:textColor="@color/text"
             android:textStyle="bold" />
     </LinearLayout>
@@ -80,7 +80,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/field_bg"
-            android:hint="نام گروه"
+            android:hint="@string/newchat_etgrouptitle_hint"
             android:inputType="text"
             android:maxLength="80"
             android:padding="13dp"
@@ -94,7 +94,7 @@
             android:layout_marginTop="10dp"
             android:backgroundTint="@color/brand_button"
             android:enabled="false"
-            android:text="ساخت گروه (۰ عضو انتخاب شده)"
+            android:text="@string/newchat_btncreategroup_text"
             android:textColor="@color/white" />
     </LinearLayout>
 
@@ -104,7 +104,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="13dp"
         android:background="@drawable/field_bg"
-        android:hint="جستجو با نام یا نام کاربری (حداقل ۲ حرف)…"
+        android:hint="@string/newchat_etsearch_hint"
         android:inputType="text"
         android:padding="13dp"
         android:singleLine="true"
@@ -116,10 +116,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:padding="16dp"
-        android:text="نام کاربری مخاطب را جستجو کنید."
+        android:padding="@dimen/space_l"
+        android:text="@string/newchat_tvsearchhint_text"
         android:textColor="@color/text2"
-        android:textSize="14sp" />
+        android:textSize="@dimen/text_body_s" />
 
     <ListView
         android:id="@+id/lvUsers"

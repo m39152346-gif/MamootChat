@@ -22,22 +22,22 @@
             android:layout_gravity="center_horizontal"
             android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:paddingTop="8dp"
+            android:paddingTop="@dimen/space_s"
             android:paddingBottom="10dp">
 
             <TextView
                 android:id="@+id/tvChatAvatar"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="@dimen/avatar_s"
+                android:layout_height="@dimen/avatar_s"
                 android:background="@drawable/avatar_circle"
                 android:gravity="center"
                 android:textColor="@color/white"
-                android:textSize="16sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <LinearLayout
                 android:id="@+id/layoutChatHeader"
-                android:contentDescription="اطلاعات گفتگو"
+                android:contentDescription="@string/chat_layoutchatheader_desc"
                 android:focusable="true"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -45,10 +45,10 @@
                 android:background="@drawable/name_pill_bg"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="12dp"
-                android:paddingTop="4dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="4dp">
+                android:paddingStart="@dimen/space_m"
+                android:paddingTop="@dimen/space_xs"
+                android:paddingEnd="@dimen/space_s"
+                android:paddingBottom="@dimen/space_xs">
 
                 <TextView
                     android:id="@+id/tvChatTitle"
@@ -56,9 +56,10 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
+                    android:textDirection="firstStrong"
                     android:maxWidth="150dp"
                     android:textColor="@color/text"
-                    android:textSize="14.5sp"
+                    android:textSize="@dimen/text_subtitle"
                     android:textStyle="bold" />
 
                 <TextView
@@ -68,7 +69,7 @@
                     android:importantForAccessibility="no"
                     android:text="‹"
                     android:textColor="@color/text2"
-                    android:textSize="16sp" />
+                    android:textSize="@dimen/text_body" />
             </LinearLayout>
 
             <TextView
@@ -80,7 +81,7 @@
                 android:maxLines="1"
                 android:maxWidth="190dp"
                 android:textColor="@color/text2"
-                android:textSize="11sp" />
+                android:textSize="@dimen/text_meta" />
         </LinearLayout>
 
         <ImageButton
@@ -88,9 +89,9 @@
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
             android:layout_gravity="start|center_vertical"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="@dimen/space_m"
             android:background="@drawable/icon_circle_bg"
-            android:contentDescription="بازگشت"
+            android:contentDescription="@string/chat_btnback_desc"
             android:padding="14dp"
             android:src="@drawable/ic_chevron_rtl"
             android:tint="@color/brand" />
@@ -99,7 +100,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="12dp"
+            android:layout_marginEnd="@dimen/space_m"
             android:orientation="horizontal">
 
             <ImageButton
@@ -107,7 +108,7 @@
                 android:layout_width="@dimen/touch_min"
                 android:layout_height="@dimen/touch_min"
                 android:background="@drawable/icon_circle_bg"
-                android:contentDescription="جستجو در گفتگو"
+                android:contentDescription="@string/chat_btnchatsearch_desc"
                 android:padding="14dp"
                 android:src="@drawable/ic_search"
                 android:tint="@color/text2" />
@@ -116,9 +117,9 @@
                 android:id="@+id/btnSecurity"
                 android:layout_width="@dimen/touch_min"
                 android:layout_height="@dimen/touch_min"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="@dimen/space_s"
                 android:background="@drawable/icon_circle_bg"
-                android:contentDescription="امنیت گفتگو"
+                android:contentDescription="@string/chat_btnsecurity_desc"
                 android:padding="14dp"
                 android:src="@drawable/ic_lock"
                 android:tint="@color/text2" />
@@ -147,13 +148,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/text"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_label" />
 
         <Button
             android:id="@+id/btnBannerAction"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="@dimen/space_s"
             android:backgroundTint="@color/brand_button"
             android:textColor="@color/white"
             android:visibility="gone" />
@@ -166,7 +167,7 @@
         android:background="@color/chat_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:padding="@dimen/space_s"
         android:visibility="gone">
 
         <EditText
@@ -175,7 +176,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/field_bg"
-            android:hint="جستجو در این گفتگو…"
+            android:hint="@string/chat_etchatsearch_hint"
             android:inputType="text"
             android:padding="10dp"
             android:textColor="@color/text"
@@ -186,8 +187,8 @@
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="نتیجه‌ی قبلی"
-            android:padding="12dp"
+            android:contentDescription="@string/chat_btnsearchprev_desc"
+            android:padding="@dimen/space_m"
             android:src="@drawable/ic_chevron_up"
             android:tint="@color/text" />
 
@@ -196,8 +197,8 @@
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="نتیجه‌ی بعدی"
-            android:padding="12dp"
+            android:contentDescription="@string/chat_btnsearchnext_desc"
+            android:padding="@dimen/space_m"
             android:src="@drawable/ic_chevron_down"
             android:tint="@color/text" />
 
@@ -206,8 +207,8 @@
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="بستن جستجو"
-            android:padding="12dp"
+            android:contentDescription="@string/chat_btnsearchclose_desc"
+            android:padding="@dimen/space_m"
             android:src="@drawable/ic_close"
             android:tint="@color/text" />
     </LinearLayout>
@@ -217,8 +218,9 @@
         style="?android:attr/borderlessButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+            android:minHeight="@dimen/touch_min"
         android:layout_gravity="center_horizontal"
-        android:text="نمایش پیام‌های قدیمی‌تر ↑"
+        android:text="@string/chat_btnloadolder_text"
         android:textColor="@color/brand"
         android:visibility="gone" />
 
@@ -240,12 +242,12 @@
         <!-- Animated three-dot typing bubble (peer messages side). -->
         <LinearLayout
             android:id="@+id/layoutTyping"
-            android:contentDescription="در حال نوشتن است"
+            android:contentDescription="@string/chat_layouttyping_desc"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|start"
-            android:layout_marginStart="16dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginStart="@dimen/space_l"
+            android:layout_marginBottom="@dimen/space_s"
             android:background="@drawable/bubble_theirs"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -256,8 +258,8 @@
             android:visibility="gone">
 
             <TextView android:id="@+id/tvTypeDot1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
-            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
-            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/space_xs" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/space_xs" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
         </LinearLayout>
 
         <!-- Telegram-style scroll-to-bottom with unread-below badge. -->
@@ -267,7 +269,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_marginEnd="14dp"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="@dimen/space_m"
             android:visibility="gone">
 
             <ImageButton
@@ -275,7 +277,7 @@
                 android:layout_width="@dimen/touch_min"
                 android:layout_height="@dimen/touch_min"
                 android:background="@drawable/icon_circle_bg"
-                android:contentDescription="رفتن به تازه‌ترین پیام"
+                android:contentDescription="@string/chat_btnscrolldown_desc"
                 android:elevation="5dp"
                 android:padding="13dp"
                 android:src="@drawable/ic_chevron_down"
@@ -318,14 +320,14 @@
             android:ellipsize="end"
             android:maxLines="2"
             android:textColor="@color/text2"
-            android:textSize="12.5sp" />
+            android:textSize="@dimen/text_caption" />
 
         <ImageButton
             android:id="@+id/btnCancelReply"
             android:layout_width="@dimen/touch_min"
             android:layout_height="@dimen/touch_min"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="لغو پاسخ"
+            android:contentDescription="@string/chat_btncancelreply_desc"
             android:padding="14dp"
             android:src="@drawable/ic_close"
             android:tint="@color/text2" />
@@ -336,16 +338,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="10dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="@dimen/space_xs"
         android:layout_marginEnd="10dp"
         android:layout_marginBottom="10dp"
         android:background="@drawable/composer_card_bg"
         android:elevation="7dp"
         android:gravity="bottom"
         android:orientation="horizontal"
-        android:paddingStart="8dp"
+        android:paddingStart="@dimen/space_s"
         android:paddingTop="6dp"
-        android:paddingEnd="8dp"
+        android:paddingEnd="@dimen/space_s"
         android:paddingBottom="6dp">
 
         <EditText
@@ -354,17 +356,17 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@null"
-            android:hint="پیام بنویسید…"
+            android:hint="@string/chat_etmessage_hint"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
             android:minHeight="@dimen/touch_min"
-            android:paddingStart="16dp"
+            android:paddingStart="@dimen/space_l"
             android:paddingTop="9dp"
-            android:paddingEnd="16dp"
+            android:paddingEnd="@dimen/space_l"
             android:paddingBottom="9dp"
             android:textColor="@color/text"
             android:textColorHint="@color/text2"
-            android:textSize="16sp" />
+            android:textSize="@dimen/text_body" />
 
         <ImageButton
             android:id="@+id/btnTtl"
@@ -373,7 +375,7 @@
             android:layout_gravity="bottom"
             android:layout_marginStart="6dp"
             android:background="@drawable/icon_circle_bg"
-            android:contentDescription="حذف خودکار پیام"
+            android:contentDescription="@string/chat_btnttl_desc"
             android:padding="14dp"
             android:src="@drawable/ic_timer"
             android:tint="@color/text2"
@@ -386,7 +388,7 @@
             android:layout_gravity="bottom"
             android:layout_marginStart="6dp"
             android:background="@drawable/send_circle_bg"
-            android:contentDescription="ارسال"
+            android:contentDescription="@string/chat_btnsend_desc"
             android:padding="13dp"
             android:src="@drawable/ic_send_up"
             android:tint="@color/white" />

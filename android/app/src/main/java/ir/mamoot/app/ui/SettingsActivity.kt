@@ -106,18 +106,21 @@ class SettingsActivity : Activity() {
 
     private fun field(hint: String, password: Boolean): EditText = EditText(this).apply {
         this.hint = hint
+        setTextColor(getColor(R.color.text))
+        setHintTextColor(getColor(R.color.text2))
+        textSize = 16f
         inputType = if (password) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         else InputType.TYPE_CLASS_TEXT
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = 12 }
+        ).apply { topMargin = UiUtil.dp(this@SettingsActivity, 12) }
     }
 
     private fun column(vararg views: View): LinearLayout {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 8, 48, 0)
+            setPadding(UiUtil.dp(this@SettingsActivity, 24), UiUtil.dp(this@SettingsActivity, 8), UiUtil.dp(this@SettingsActivity, 24), 0)
         }
         views.forEach { box.addView(it) }
         return box
@@ -159,7 +162,7 @@ class SettingsActivity : Activity() {
 
     private fun updateAppLockLabel() {
         val state = if (app.appLock.isPinSet()) "روشن" else "خاموش"
-        btnAppLock.text = "🔒 قفل برنامه ($state)"
+        btnAppLock.text = "قفل برنامه ($state)"
     }
 
     private fun showAppLockOptions() {
@@ -343,13 +346,13 @@ class SettingsActivity : Activity() {
     // ------------------------------------------------ advanced security & data
     private fun showAdvancedSecurity() {
         val options = arrayOf(
-            "📦 ساخت پشتیبان رمزنگاری‌شده",
-            "♻️ بازیابی پشتیبان",
-            "📄 خروجی داده‌های من",
-            "👁 حریم خصوصی آخرین بازدید",
-            "🧹 لغو همه نشست‌های امن",
-            "🔑 چرخش کلید هویت (خطرناک)",
-            "📜 حریم خصوصی و شرایط استفاده",
+            "ساخت پشتیبان رمزنگاری‌شده",
+            "بازیابی پشتیبان",
+            "خروجی داده‌های من",
+            "حریم خصوصی آخرین بازدید",
+            "لغو همه نشست‌های امن",
+            "چرخش کلید هویت (خطرناک)",
+            "حریم خصوصی و شرایط استفاده",
         )
         AlertDialog.Builder(this)
             .setTitle("امنیت پیشرفته و داده‌ها")
@@ -388,7 +391,7 @@ class SettingsActivity : Activity() {
         }
         pass1.addTextChangedListener(watcher)
         AlertDialog.Builder(this)
-            .setTitle("پشتیبان رمزنگاری‌شده 📦")
+            .setTitle("پشتیبان رمزنگاری‌شده")
             .setMessage("کلید هویت و تاریخچه خوانای این دستگاه با گذرواژه شما رمز می‌شود (PBKDF2 با ۶۰۰ هزار تکرار + AES-256-GCM) و در یک فایل ذخیره می‌شود. هنگام بازیابی روی گوشی تازه، نشست‌های چت امن از نو ساخته می‌شوند. بدون گذرواژه، بازیابی برای هیچ‌کس — حتی خودتان — ممکن نیست.")
             .setView(column(pass1, pass2, strength))
             .setNegativeButton("لغو", null)
@@ -424,7 +427,7 @@ class SettingsActivity : Activity() {
     private fun promptRestorePassphrase(blob: String) {
         val pass = field("گذرواژه پشتیبان", password = true)
         AlertDialog.Builder(this)
-            .setTitle("بازیابی پشتیبان ♻️")
+            .setTitle("بازیابی پشتیبان")
             .setMessage("اطلاعات پشتیبان روی همین حساب اعمال می‌شود؛ پیام‌های موجود روی دستگاه پاک نمی‌شوند و موارد تکراری ادغام می‌شوند. اگر پشتیبان از گوشی قبلی همین حساب است، چت‌های امن با همان کلید ادامه پیدا می‌کنند.")
             .setView(column(pass))
             .setNegativeButton("لغو", null)
@@ -448,7 +451,7 @@ class SettingsActivity : Activity() {
 
     private fun confirmExportData() {
         AlertDialog.Builder(this)
-            .setTitle("خروجی داده‌های من 📄")
+            .setTitle("خروجی داده‌های من")
             .setMessage("یک فایل متنی خوانا از اطلاعات حساب و تاریخچه خوانای روی این دستگاه ساخته می‌شود. این فایل رمزنگاری نشده است؛ جای امنی نگهش دارید.")
             .setNegativeButton("لغو", null)
             .setPositiveButton("ساخت خروجی") { _, _ ->
@@ -509,7 +512,7 @@ class SettingsActivity : Activity() {
 
     private fun confirmRotateIdentity() {
         AlertDialog.Builder(this)
-            .setTitle("⚠️ چرخش کلید هویت")
+            .setTitle("چرخش کلید هویت")
             .setMessage("کلید هویتی این دستگاه به‌طور کامل تعویض می‌شود. همه نشست‌های امن و اثر انگشت مخاطبان پاک می‌شوند و برای همه مخاطبان «هشدار تغییر کلید» نمایش داده می‌شود. پیام‌های امن خوانده‌نشده روی سرور دیگر خوانا نخواهند بود.\n\nفقط وقتی این کار را بکنید که به لو رفتن کلید شک دارید.")
             .setNegativeButton("لغو", null)
             .setPositiveButton("ادامه") { _, _ ->
@@ -546,12 +549,12 @@ class SettingsActivity : Activity() {
             "• سرویس «همان‌طور که هست» ارائه می‌شود. متن کامل در مخزن عمومی پروژه (docs/PRIVACY.md و docs/TERMS.md) در دسترس است."
         val view = TextView(this).apply {
             this.text = text
-            setPadding(56, 24, 56, 8)
+            setPadding(UiUtil.dp(this@SettingsActivity, 24), UiUtil.dp(this@SettingsActivity, 12), UiUtil.dp(this@SettingsActivity, 24), UiUtil.dp(this@SettingsActivity, 4))
             textSize = 14f
         }
         val scroll = android.widget.ScrollView(this).apply { addView(view) }
         AlertDialog.Builder(this)
-            .setTitle("حریم خصوصی و شرایط استفاده 📜")
+            .setTitle("حریم خصوصی و شرایط استفاده")
             .setView(scroll)
             .setPositiveButton("خواندم", null)
             .show()

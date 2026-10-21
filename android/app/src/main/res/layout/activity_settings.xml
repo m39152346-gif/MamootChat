@@ -16,9 +16,9 @@
             android:layout_height="wrap_content"
             android:background="@drawable/hero_gradient"
             android:orientation="vertical"
-            android:paddingStart="16dp"
+            android:paddingStart="@dimen/space_l"
             android:paddingTop="14dp"
-            android:paddingEnd="16dp"
+            android:paddingEnd="@dimen/space_l"
             android:paddingBottom="34dp">
 
             <LinearLayout
@@ -32,7 +32,7 @@
                     android:layout_width="@dimen/touch_min"
                     android:layout_height="@dimen/touch_min"
                     android:background="@drawable/glass_circle_bg"
-                    android:contentDescription="بازگشت"
+                    android:contentDescription="@string/chat_btnback_desc"
                     android:padding="14dp"
                     android:src="@drawable/ic_chevron_rtl"
                     android:tint="@color/white" />
@@ -41,9 +41,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="10dp"
-                    android:text="پروفایل و امنیت"
+                    android:text="@string/settings_view0_text"
                     android:textColor="@color/white"
-                    android:textSize="18sp"
+                    android:textSize="@dimen/text_title"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -57,7 +57,7 @@
                 android:elevation="4dp"
                 android:gravity="center"
                 android:textColor="@color/white"
-                android:textSize="30sp"
+                android:textSize="@dimen/text_display"
                 android:textStyle="bold" />
 
             <TextView
@@ -67,7 +67,7 @@
                 android:layout_marginTop="10dp"
                 android:gravity="center"
                 android:textColor="@color/on_brand_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_label" />
         </LinearLayout>
 
         <!-- Sheet overlapping the hero. -->
@@ -78,23 +78,23 @@
             android:background="@drawable/sheet_bg"
             android:elevation="5dp"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="@dimen/space_xl">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="اطلاعات نمایشی"
+                android:text="@string/settings_view1_text"
                 android:textColor="@color/text"
-                android:textSize="16sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <EditText
                 android:id="@+id/etSettingsDisplay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/space_m"
                 android:background="@drawable/field_bg"
-                android:hint="نام نمایشی"
+                android:hint="@string/auth_lbldisplayname_text"
                 android:inputType="textPersonName"
                 android:maxLength="50"
                 android:padding="14dp"
@@ -107,7 +107,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/field_bg"
-                android:hint="نام کاربری (انگلیسی)"
+                android:hint="@string/auth_etprofileusername_hint"
                 android:inputType="text"
                 android:maxLength="24"
                 android:padding="14dp"
@@ -120,7 +120,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:textColor="@color/danger"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_body_s"
                 android:visibility="gone" />
 
             <Button
@@ -129,29 +129,29 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="14dp"
                 android:background="@drawable/btn_primary_bg"
-                android:text="ذخیره تغییرات"
+                android:text="@string/settings_btnsavesettings_text"
                 android:textColor="@color/white"
-                android:textSize="15.5sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvIdentityInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:background="@drawable/field_bg"
                 android:lineSpacingMultiplier="1.55"
-                android:padding="16dp"
+                android:padding="@dimen/space_l"
                 android:textColor="@color/text2"
-                android:textSize="12.5sp" />
+                android:textSize="@dimen/text_caption" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:text="حساب و امنیت"
+                android:layout_marginTop="@dimen/space_xxl"
+                android:text="@string/settings_view2_text"
                 android:textColor="@color/text"
-                android:textSize="16sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <!-- iOS-Settings-style grouped card with vector icons. -->
@@ -163,9 +163,9 @@
                 android:elevation="2dp"
                 android:orientation="vertical"
                 android:paddingStart="6dp"
-                android:paddingTop="4dp"
+                android:paddingTop="@dimen/space_xs"
                 android:paddingEnd="6dp"
-                android:paddingBottom="4dp">
+                android:paddingBottom="@dimen/space_xs">
 
                 <Button
                     android:id="@+id/btnChangePassword"
@@ -176,9 +176,9 @@
                     android:drawablePadding="12dp"
                     android:drawableTint="@color/brand"
                     android:gravity="start|center_vertical"
-                    android:text="تغییر رمز عبور"
+                    android:text="@string/settings_btnchangepassword_text"
                     android:textColor="@color/text"
-                    android:textSize="14.5sp" />
+                    android:textSize="@dimen/text_subtitle" />
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
 
@@ -191,9 +191,9 @@
                     android:drawablePadding="12dp"
                     android:drawableTint="@color/ok"
                     android:gravity="start|center_vertical"
-                    android:text="قفل برنامه"
+                    android:text="@string/settings_btnapplock_text"
                     android:textColor="@color/text"
-                    android:textSize="14.5sp" />
+                    android:textSize="@dimen/text_subtitle" />
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
 
@@ -206,9 +206,9 @@
                     android:drawablePadding="12dp"
                     android:drawableTint="@color/brand2"
                     android:gravity="start|center_vertical"
-                    android:text="امنیت پیشرفته، پشتیبان و حریم خصوصی"
+                    android:text="@string/settings_btnadvancedsecurity_text"
                     android:textColor="@color/text"
-                    android:textSize="14.5sp" />
+                    android:textSize="@dimen/text_subtitle" />
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
 
@@ -221,9 +221,9 @@
                     android:drawablePadding="12dp"
                     android:drawableTint="@color/danger"
                     android:gravity="start|center_vertical"
-                    android:text="کاربران مسدود"
+                    android:text="@string/settings_btnblockedusers_text"
                     android:textColor="@color/text"
-                    android:textSize="14.5sp" />
+                    android:textSize="@dimen/text_subtitle" />
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
 
@@ -236,22 +236,22 @@
                     android:drawablePadding="12dp"
                     android:drawableTint="@color/danger"
                     android:gravity="start|center_vertical"
-                    android:text="حذف حساب کاربری"
+                    android:text="@string/settings_btndeleteaccount_text"
                     android:textColor="@color/danger"
-                    android:textSize="14.5sp" />
+                    android:textSize="@dimen/text_subtitle" />
             </LinearLayout>
 
             <Button
                 android:id="@+id/btnLogout"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:drawableStart="@drawable/ic_logout"
                 android:drawablePadding="10dp"
                 android:drawableTint="@color/danger"
-                android:text="خروج و پاک‌کردن داده‌های این گوشی"
+                android:text="@string/settings_btnlogout_text"
                 android:textColor="@color/danger"
-                android:textSize="14.5sp" />
+                android:textSize="@dimen/text_subtitle" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

@@ -14,7 +14,7 @@
         <ImageView
             android:layout_width="match_parent"
             android:layout_height="190dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="@dimen/space_s"
             android:contentDescription="@null"
             android:scaleType="centerCrop"
             android:src="@drawable/img_secure_hero" />
@@ -24,9 +24,9 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="14dp"
-            android:text="مموت"
+            android:text="@string/app_name"
             android:textColor="@color/text"
-            android:textSize="30sp"
+            android:textSize="@dimen/text_display"
             android:textStyle="bold" />
 
         <TextView
@@ -35,9 +35,9 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="6dp"
             android:gravity="center"
-            android:text="چت متنی امن با رمزنگاری سرتاسری؛ فقط متن، بدون حاشیه."
+            android:text="@string/auth_view0_text"
             android:textColor="@color/text2"
-            android:textSize="14sp" />
+            android:textSize="@dimen/text_body_s" />
 
         <LinearLayout
             android:id="@+id/layoutAuth"
@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/segmented_bg"
                 android:orientation="horizontal"
-                android:padding="4dp">
+                android:padding="@dimen/space_xs">
 
                 <Button
                     android:id="@+id/btnModeLogin"
@@ -59,9 +59,9 @@
                     android:layout_width="0dp"
                     android:layout_height="@dimen/touch_min"
                     android:layout_weight="1"
-                    android:text="ورود"
+                    android:text="@string/auth_btnmodelogin_text"
                     android:textColor="@color/text"
-                    android:textSize="15sp"
+                    android:textSize="@dimen/text_button"
                     android:textStyle="bold" />
 
                 <Button
@@ -70,9 +70,9 @@
                     android:layout_width="0dp"
                     android:layout_height="@dimen/touch_min"
                     android:layout_weight="1"
-                    android:text="ثبت‌نام"
+                    android:text="@string/auth_btnmodesignup_text"
                     android:textColor="@color/text"
-                    android:textSize="15sp"
+                    android:textSize="@dimen/text_button"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -82,9 +82,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:labelFor="@+id/etDisplayName"
-                android:text="نام نمایشی"
+                android:text="@string/auth_lbldisplayname_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -95,7 +95,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="نام نمایشی"
+                android:hint="@string/auth_lbldisplayname_text"
                 android:inputType="textPersonName"
                 android:maxLength="50"
                 android:padding="13dp"
@@ -107,11 +107,11 @@
                 android:id="@+id/lblUsername"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/space_m"
                 android:labelFor="@+id/etUsername"
-                android:text="نام کاربری"
+                android:text="@string/auth_lblusername_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -122,7 +122,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="نام کاربری (انگلیسی، مثل mamoot_42)"
+                android:hint="@string/auth_etusername_hint"
+                android:textDirection="ltr"
                 android:inputType="text"
                 android:maxLength="24"
                 android:padding="13dp"
@@ -134,11 +135,11 @@
                 android:id="@+id/lblEmail"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/space_m"
                 android:labelFor="@+id/etEmail"
-                android:text="ایمیل"
+                android:text="@string/auth_lblemail_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold" />
 
             <EditText
@@ -148,7 +149,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="ایمیل"
+                android:hint="@string/auth_lblemail_text"
+                android:textDirection="ltr"
                 android:inputType="textEmailAddress"
                 android:padding="13dp"
                 android:textColor="@color/text"
@@ -158,11 +160,11 @@
                 android:id="@+id/lblPassword"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/space_m"
                 android:labelFor="@+id/etPassword"
-                android:text="رمز عبور"
+                android:text="@string/auth_lblpassword_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold" />
 
             <EditText
@@ -172,7 +174,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="رمز عبور (حداقل ۸ نویسه، حرف و عدد)"
+                android:hint="@string/auth_etpassword_hint"
                 android:inputType="textPassword"
                 android:padding="13dp"
                 android:textColor="@color/text"
@@ -184,9 +186,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:minHeight="@dimen/touch_min"
-                android:text="نمایش رمز عبور"
+                android:text="@string/auth_cbshowpassword_text"
                 android:textColor="@color/text2"
-                android:textSize="14sp" />
+                android:textSize="@dimen/text_body_s" />
 
             <TextView
                 android:id="@+id/tvAuthError"
@@ -194,18 +196,18 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:textColor="@color/danger"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_body_s"
                 android:visibility="gone" />
 
             <Button
                 android:id="@+id/btnAuthSubmit"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/space_l"
                 android:background="@drawable/btn_primary_bg"
-                android:text="ورود"
+                android:text="@string/auth_btnmodelogin_text"
                 android:textColor="@color/white"
-                android:textSize="16sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <Button
@@ -213,9 +215,10 @@
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+            android:minHeight="@dimen/touch_min"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="8dp"
-                android:text="رمز عبور را فراموش کرده‌ام"
+                android:layout_marginTop="@dimen/space_s"
+                android:text="@string/auth_btnforgot_text"
                 android:textColor="@color/brand" />
         </LinearLayout>
 
@@ -230,9 +233,9 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="تکمیل پروفایل"
+                android:text="@string/auth_view1_text"
                 android:textColor="@color/text"
-                android:textSize="19sp"
+                android:textSize="@dimen/text_headline"
                 android:textStyle="bold" />
 
             <TextView
@@ -241,9 +244,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:labelFor="@+id/etProfileDisplay"
-                android:text="نام نمایشی"
+                android:text="@string/auth_lbldisplayname_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold" />
 
             <EditText
@@ -253,7 +256,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="نام نمایشی"
+                android:hint="@string/auth_lbldisplayname_text"
                 android:inputType="textPersonName"
                 android:maxLength="50"
                 android:padding="13dp"
@@ -264,11 +267,11 @@
                 android:id="@+id/lblProfileUsername"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/space_m"
                 android:labelFor="@+id/etProfileUsername"
-                android:text="نام کاربری"
+                android:text="@string/auth_lblusername_text"
                 android:textColor="@color/text"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold" />
 
             <EditText
@@ -278,7 +281,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:background="@drawable/field_bg"
-                android:hint="نام کاربری (انگلیسی)"
+                android:hint="@string/auth_etprofileusername_hint"
+                android:textDirection="ltr"
                 android:inputType="text"
                 android:maxLength="24"
                 android:padding="13dp"
@@ -291,18 +295,18 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:textColor="@color/danger"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_body_s"
                 android:visibility="gone" />
 
             <Button
                 android:id="@+id/btnProfileSubmit"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/space_l"
                 android:background="@drawable/btn_primary_bg"
-                android:text="شروع گفتگو"
+                android:text="@string/auth_btnprofilesubmit_text"
                 android:textColor="@color/white"
-                android:textSize="16sp"
+                android:textSize="@dimen/text_body"
                 android:textStyle="bold" />
 
             <Button
@@ -310,9 +314,10 @@
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+            android:minHeight="@dimen/touch_min"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="8dp"
-                android:text="خروج از حساب"
+                android:layout_marginTop="@dimen/space_s"
+                android:text="@string/auth_btnprofilelogout_text"
                 android:textColor="@color/danger" />
         </LinearLayout>
 
@@ -321,8 +326,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:gravity="center"
-            android:text="پیام‌های خصوصی روی همین گوشی رمزنگاری می‌شوند؛ سرور فقط متن رمز شده را می‌بیند."
+            android:text="@string/auth_view2_text"
             android:textColor="@color/text2"
-            android:textSize="12sp" />
+            android:textSize="@dimen/text_caption" />
     </LinearLayout>
 </ScrollView>

@@ -101,6 +101,10 @@ object UiUtil {
      * Non-essential animations (typing dots, message entrance, send pop) must
      * check this and render their static end-state instead.
      */
+    /** dp → px for the few programmatically-built dialog views. */
+    fun dp(context: Context, v: Int): Int =
+        (v * context.resources.displayMetrics.density).toInt()
+
     fun motionReduced(context: Context): Boolean = try {
         Settings.Global.getFloat(
             context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,

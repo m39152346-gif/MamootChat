@@ -21,19 +21,19 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="مموت قفل است"
+        android:layout_marginTop="@dimen/space_l"
+        android:text="@string/lock_view0_text"
         android:textColor="@color/text"
-        android:textSize="20sp"
+        android:textSize="@dimen/text_headline"
         android:textStyle="bold" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="رمز قفل برنامه را وارد کنید"
+        android:text="@string/lock_view1_text"
         android:textColor="@color/text2"
-        android:textSize="14sp" />
+        android:textSize="@dimen/text_body_s" />
 
     <EditText
         android:id="@+id/etPin"
@@ -42,14 +42,14 @@
         android:layout_marginTop="22dp"
         android:background="@drawable/field_bg"
         android:gravity="center"
-        android:hint="رمز قفل"
+        android:hint="@string/lock_etpin_hint"
         android:inputType="textPassword"
         android:letterSpacing="0.4"
         android:maxLength="64"
         android:padding="14dp"
         android:textColor="@color/text"
         android:textColorHint="@color/text2"
-        android:textSize="20sp" />
+        android:textSize="@dimen/text_headline" />
 
     <TextView
         android:id="@+id/tvLockError"
@@ -58,16 +58,16 @@
         android:layout_marginTop="10dp"
         android:gravity="center"
         android:textColor="@color/danger"
-        android:textSize="14sp"
+        android:textSize="@dimen/text_body_s"
         android:visibility="gone" />
 
     <Button
         android:id="@+id/btnUnlock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="@dimen/space_l"
         android:backgroundTint="@color/brand_button"
-        android:text="باز کردن"
+        android:text="@string/lock_btnunlock_text"
         android:textColor="@color/white" />
 
     <Button
@@ -75,8 +75,9 @@
         style="?android:attr/borderlessButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="ورود با اثر انگشت / چهره"
+            android:minHeight="@dimen/touch_min"
+        android:layout_marginTop="@dimen/space_s"
+        android:text="@string/lock_btnbiometric_text"
         android:textColor="@color/brand"
         android:visibility="gone" />
 
@@ -85,7 +86,8 @@
         style="?android:attr/borderlessButtonStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="رمز قفل را فراموش کرده‌ام"
+            android:minHeight="@dimen/touch_min"
+        android:layout_marginTop="@dimen/space_xl"
+        android:text="@string/lock_btnforgotpin_text"
         android:textColor="@color/danger" />
 </LinearLayout>

@@ -27,8 +27,10 @@
     <!-- Type scale (Vazirmatn). Nothing informative below text_meta. -->
     <dimen name="text_meta">11sp</dimen>
     <dimen name="text_caption">12sp</dimen>
+    <dimen name="text_label">13sp</dimen>
     <dimen name="text_body_s">14sp</dimen>
     <dimen name="text_button">15sp</dimen>
+    <dimen name="text_subtitle">15sp</dimen>
     <dimen name="text_body">16sp</dimen>
     <dimen name="text_title">18sp</dimen>
     <dimen name="text_headline">20sp</dimen>

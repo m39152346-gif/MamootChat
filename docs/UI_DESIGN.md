@@ -108,3 +108,12 @@ auth has persistent labels + per-field errors + show-password; system
 reduced-motion is respected; launcher foreground fits the adaptive-icon safe
 zone; Android 15 edge-to-edge temporarily opted out (`values-v35`) pending a
 real WindowInsets migration before targetSdk 36.
+
+## v0.5.2 — backlog closure (2026-10-21)
+
+See `docs/UI_AUDIT.md` "Round 2". All layout strings live in `strings.xml`;
+the type scale is complete and fully applied; mixed Persian/Latin content uses
+`firstStrong`/LTR fields where appropriate; dialog-built fields share the same
+tokens as XML layouts; emoji no longer serve as menu/list icons anywhere
+(reactions and status ticks are the deliberate exceptions); the backup
+passphrase field is properly masked.

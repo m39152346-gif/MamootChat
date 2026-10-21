@@ -275,17 +275,17 @@ class MessageAdapter(
         }
         val statusSuffix = if (msg.mine && !msg.deleted && !msg.expired) {
             when (msg.status) {
-                LocalDb.STATUS_SENDING -> " · 🕐"
-                LocalDb.STATUS_FAILED -> " · ⚠️ ارسال نشد"
+                LocalDb.STATUS_SENDING -> " · در حال ارسال"
+                LocalDb.STATUS_FAILED -> " · ارسال نشد"
                 else -> if (isRead) " · ✓✓" else " · ✓"
             }
         } else {
             ""
         }
         val lockMark = if (msg.encrypted && !msg.deleted && !msg.expired) "🔒 " else ""
-        val ttlMark = if (msg.ttlSeconds > 0 && !msg.expired && !msg.deleted) " · ⏱" else ""
+        val ttlMark = if (msg.ttlSeconds > 0 && !msg.expired && !msg.deleted) " · حذف خودکار" else ""
         val editedMark = if (msg.edited && !msg.deleted && !msg.expired) " · ویرایش شد" else ""
-        val forwardedMark = if (msg.forwarded && !msg.deleted && !msg.expired) " · ↪ بازارسال‌شده" else ""
+        val forwardedMark = if (msg.forwarded && !msg.deleted && !msg.expired) " · بازارسال‌شده" else ""
         meta.text = lockMark + UiUtil.formatTime(msg.createdAt) + forwardedMark + editedMark + ttlMark + statusSuffix
         // Hide the time/status line inside a tight group (like iOS);
         // always keep it for failures and annotated messages.
