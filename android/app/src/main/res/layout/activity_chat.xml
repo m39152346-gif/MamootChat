@@ -2,83 +2,136 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="@color/chat_bg"
     android:orientation="vertical">
 
-    <LinearLayout
+    <!--
+      iMessage-style centered header (Figma reference): avatar + name pill
+      + status stacked in the center, circular icon buttons on both sides.
+    -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@color/surface"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="4dp"
-        android:paddingEnd="6dp">
-
-        <Button
-            android:id="@+id/btnBack"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="44dp"
-            android:layout_height="48dp"
-            android:contentDescription="بازگشت"
-            android:text="›"
-            android:textColor="@color/text"
-            android:textSize="26sp" />
-
-        <TextView
-            android:id="@+id/tvChatAvatar"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:background="@drawable/avatar_circle"
-            android:gravity="center"
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+        android:layout_height="104dp"
+        android:background="@color/chat_bg">
 
         <LinearLayout
-            android:id="@+id/layoutChatHeader"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="8dp">
 
             <TextView
-                android:id="@+id/tvChatTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text"
-                android:textSize="17sp"
+                android:id="@+id/tvChatAvatar"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/avatar_circle"
+                android:gravity="center"
+                android:textColor="@color/white"
+                android:textSize="16sp"
                 android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/layoutChatHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:background="@drawable/name_pill_bg"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/tvChatTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:maxWidth="150dp"
+                    android:textColor="@color/text"
+                    android:textSize="14.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp"
+                    android:text="‹"
+                    android:textColor="@color/text2"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvChatStatus"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
                 android:maxLines="1"
+                android:maxWidth="190dp"
                 android:textColor="@color/text2"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
 
         <Button
-            android:id="@+id/btnChatSearch"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="جستجو در گفتگو"
-            android:text="🔎"
-            android:textSize="18sp" />
+            android:id="@+id/btnBack"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/icon_circle_bg"
+            android:contentDescription="بازگشت"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
+            android:text="›"
+            android:textColor="@color/brand"
+            android:textSize="24sp"
+            android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnSecurity"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="امنیت گفتگو"
-            android:text="🔒"
-            android:textSize="18sp" />
-    </LinearLayout>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnChatSearch"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="جستجو در گفتگو"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:padding="0dp"
+                android:text="🔎"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btnSecurity"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="امنیت گفتگو"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:padding="0dp"
+                android:text="🔒"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_gravity="bottom"
+            android:background="@color/separator" />
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/layoutBanner"
@@ -112,7 +165,7 @@
         android:id="@+id/layoutSearch"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface2"
+        android:background="@color/chat_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="8dp"
@@ -173,16 +226,18 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:background="@color/chat_bg"
         android:divider="@null"
         android:dividerHeight="0dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="8dp" />
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp"
+        android:scrollbars="none" />
 
     <LinearLayout
         android:id="@+id/layoutReply"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface"
+        android:background="@color/chat_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="14dp"
@@ -210,13 +265,17 @@
             android:textColor="@color/text2" />
     </LinearLayout>
 
+    <!-- Floating composer: pill input + circular blue send (iMessage). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface"
-        android:gravity="center_vertical"
+        android:background="@color/chat_bg"
+        android:gravity="bottom"
         android:orientation="horizontal"
-        android:padding="9dp">
+        android:paddingStart="12dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="10dp">
 
         <EditText
             android:id="@+id/etMessage"
@@ -227,32 +286,47 @@
             android:hint="پیام بنویسید…"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
-            android:paddingStart="15dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="15dp"
-            android:paddingBottom="10dp"
+            android:minHeight="42dp"
+            android:paddingStart="16dp"
+            android:paddingTop="9dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="9dp"
             android:textColor="@color/text"
-            android:textColorHint="@color/text2" />
+            android:textColorHint="@color/text2"
+            android:textSize="16sp" />
 
         <Button
             android:id="@+id/btnTtl"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="4dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="8dp"
+            android:layout_marginBottom="3dp"
+            android:background="@drawable/icon_circle_bg"
             android:contentDescription="حذف خودکار پیام"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="⏱"
             android:textColor="@color/text2"
-            android:textSize="17sp"
+            android:textSize="15sp"
             android:visibility="gone" />
 
         <Button
             android:id="@+id/btnSend"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom"
             android:layout_marginStart="8dp"
-            android:backgroundTint="@color/brand"
-            android:text="ارسال"
-            android:textColor="@color/white" />
+            android:layout_marginBottom="3dp"
+            android:background="@drawable/send_circle_bg"
+            android:contentDescription="ارسال"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
+            android:text="↑"
+            android:textColor="@color/white"
+            android:textSize="19sp"
+            android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

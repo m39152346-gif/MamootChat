@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Floating iMessage-style composer pill. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <corners android:radius="22dp" />
-    <solid android:color="@color/surface2" />
-    <stroke android:width="1dp" android:color="@color/border" />
+    <solid android:color="@color/chat_bg" />
+    <stroke android:width="1dp" android:color="@color/input_border" />
 </shape>

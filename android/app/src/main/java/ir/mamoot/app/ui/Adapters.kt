@@ -1,6 +1,12 @@
 package ir.mamoot.app.ui
 
 import android.content.Context
+import android.graphics.Typeface
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -140,9 +146,29 @@ class MessageAdapter(
         val reactionsView = view.findViewById<TextView>(R.id.tvReactions)
         quote.visibility = View.GONE
         reactionsView.visibility = View.GONE
-        val maxWidth = (context.resources.displayMetrics.widthPixels * 0.79).toInt()
+        val maxWidth = (context.resources.displayMetrics.widthPixels * 0.76).toInt()
         bubble.maxWidth = maxWidth
         meta.visibility = View.VISIBLE
+
+        // iMessage-style grouping: consecutive messages from the same
+        // sender on the same day sit 1dp apart, groups get real air,
+        // the bubble "tail" and the time/status line appear only on
+        // the last bubble of a group. Keeps long chats calm to read.
+        fun sameGroup(a: UiMessage, b: UiMessage): Boolean =
+            !a.system && !b.system && a.mine == b.mine && a.senderId == b.senderId &&
+                UiUtil.dayKey(a.createdAt) == UiUtil.dayKey(b.createdAt)
+        val prevMsg = items.getOrNull(position - 1)
+        val nextMsg = items.getOrNull(position + 1)
+        val sameAsPrev = prevMsg != null && sameGroup(prevMsg, msg)
+        val sameAsNext = nextMsg != null && sameGroup(msg, nextMsg)
+        val density = context.resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density).toInt()
+        view.setPadding(
+            dp(16),
+            if (showDay || !sameAsPrev) dp(7) else dp(1),
+            dp(16),
+            if (!sameAsNext) dp(3) else dp(1),
+        )
 
         if (msg.system) {
             (bubble.layoutParams as LinearLayout.LayoutParams).gravity = Gravity.CENTER_HORIZONTAL
@@ -184,14 +210,35 @@ class MessageAdapter(
                 bubble.text = "این پیام حذف شد"
             }
             msg.text != null -> {
-                bubble.setBackgroundResource(if (msg.mine) R.drawable.bubble_mine else R.drawable.bubble_theirs)
-                val senderPrefix = if (isGroup && !msg.mine) {
-                    memberNames[msg.senderId]?.let { "$it\n" } ?: ""
-                } else {
-                    ""
+                val isRtl = context.resources.configuration.layoutDirection ==
+                    View.LAYOUT_DIRECTION_RTL
+                val bubbleRes = when {
+                    msg.mine && !sameAsNext && isRtl -> R.drawable.bubble_mine_rtl
+                    msg.mine && !sameAsNext -> R.drawable.bubble_mine_ltr
+                    msg.mine -> R.drawable.bubble_mine
+                    !sameAsNext && isRtl -> R.drawable.bubble_theirs_rtl
+                    !sameAsNext -> R.drawable.bubble_theirs_ltr
+                    else -> R.drawable.bubble_theirs
                 }
-                bubble.text = senderPrefix + msg.text
+                bubble.setBackgroundResource(bubbleRes)
                 bubble.setTextColor(context.getColor(if (msg.mine) R.color.white else R.color.text))
+                val senderName = if (isGroup && !msg.mine) memberNames[msg.senderId] else null
+                if (senderName != null) {
+                    // Small bold brand-colored name line inside group bubbles.
+                    val styled = SpannableStringBuilder()
+                    styled.append(senderName)
+                    styled.setSpan(StyleSpan(Typeface.BOLD), 0, senderName.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    styled.setSpan(RelativeSizeSpan(0.82f), 0, senderName.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    styled.setSpan(
+                        ForegroundColorSpan(UiUtil.avatarColor(msg.senderId)),
+                        0, senderName.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    styled.append("\n")
+                    styled.append(msg.text)
+                    bubble.text = styled
+                } else {
+                    bubble.text = msg.text
+                }
             }
             else -> {
                 bubble.setBackgroundResource(R.drawable.bubble_deleted)
@@ -224,6 +271,12 @@ class MessageAdapter(
         val editedMark = if (msg.edited && !msg.deleted && !msg.expired) " · ویرایش شد" else ""
         val forwardedMark = if (msg.forwarded && !msg.deleted && !msg.expired) " · ↪ بازارسال‌شده" else ""
         meta.text = lockMark + UiUtil.formatTime(msg.createdAt) + forwardedMark + editedMark + ttlMark + statusSuffix
+        // Hide the time/status line inside a tight group (like iOS);
+        // always keep it for failures and annotated messages.
+        val needsMeta = !sameAsNext || msg.status == LocalDb.STATUS_FAILED ||
+            msg.status == LocalDb.STATUS_SENDING || msg.edited || msg.forwarded ||
+            msg.ttlSeconds > 0 || msg.deleted || msg.expired
+        meta.visibility = if (needsMeta) View.VISIBLE else View.GONE
         return view
     }
 }

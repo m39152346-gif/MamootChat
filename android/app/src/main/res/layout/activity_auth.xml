@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="@color/chat_bg"
     android:fillViewport="true">
 
     <LinearLayout
@@ -16,7 +16,7 @@
             android:layout_height="76dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="24dp"
-            android:background="@drawable/avatar_circle"
+            android:background="@drawable/logo_circle"
             android:gravity="center"
             android:text="م"
             android:textColor="@color/white"
@@ -53,22 +53,31 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:background="@drawable/segmented_bg"
+                android:orientation="horizontal"
+                android:padding="4dp">
 
                 <Button
                     android:id="@+id/btnModeLogin"
+                    style="?android:attr/borderlessButtonStyle"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="ورود" />
+                    android:text="ورود"
+                    android:textColor="@color/text"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnModeSignup"
+                    style="?android:attr/borderlessButtonStyle"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="ثبت‌نام" />
+                    android:text="ثبت‌نام"
+                    android:textColor="@color/text"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <EditText
@@ -135,11 +144,13 @@
             <Button
                 android:id="@+id/btnAuthSubmit"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="52dp"
                 android:layout_marginTop="16dp"
-                android:backgroundTint="@color/brand"
+                android:background="@drawable/btn_primary_bg"
                 android:text="ورود"
-                android:textColor="@color/white" />
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btnForgot"
@@ -206,11 +217,13 @@
             <Button
                 android:id="@+id/btnProfileSubmit"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="52dp"
                 android:layout_marginTop="16dp"
-                android:backgroundTint="@color/brand"
+                android:background="@drawable/btn_primary_bg"
                 android:text="شروع گفتگو"
-                android:textColor="@color/white" />
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btnProfileLogout"

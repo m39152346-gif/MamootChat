@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mamoot design tokens — iMessage-inspired (see docs/UI_DESIGN.md).
+  Light: pure-white chat canvas, iOS system grays, vivid blue bubbles.
+-->
 <resources>
-    <color name="brand">#5B5BD6</color>
-    <color name="bg">#F0F2F5</color>
+    <color name="brand">#007AFF</color>
+    <color name="brand2">#5E5CE6</color>
+    <color name="bg">#F2F2F7</color>
+    <color name="chat_bg">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface2">#F1F3F7</color>
-    <color name="text">#17202A</color>
-    <color name="text2">#5B6B7B</color>
-    <color name="border">#E3E6EA</color>
-    <color name="danger">#D92D20</color>
-    <color name="ok">#079455</color>
-    <color name="bubble_mine">#5B5BD6</color>
-    <color name="bubble_theirs">#FFFFFF</color>
+    <color name="surface2">#F2F2F7</color>
+    <color name="text">#111113</color>
+    <color name="text2">#8E8E93</color>
+    <color name="border">#E5E5EA</color>
+    <color name="separator">#E5E5EA</color>
+    <color name="input_border">#D1D1D6</color>
+    <color name="icon_circle">#F2F2F7</color>
+    <color name="name_pill">#F2F2F7</color>
+    <color name="danger">#FF3B30</color>
+    <color name="ok">#34C759</color>
+    <color name="bubble_mine">#007AFF</color>
+    <color name="bubble_mine_start">#0A84FF</color>
+    <color name="bubble_mine_end">#0062E6</color>
+    <color name="bubble_theirs">#E9E9EB</color>
     <color name="white">#FFFFFF</color>
 </resources>

@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark: pure-black chat canvas (like the reference), iOS dark grays,
+  brighter system blue so bubbles pop on black.
+-->
 <resources>
-    <color name="brand">#7A7AE8</color>
-    <color name="bg">#0B141A</color>
-    <color name="surface">#111B21</color>
-    <color name="surface2">#1F2C33</color>
-    <color name="text">#E9EDEF</color>
-    <color name="text2">#8696A0</color>
-    <color name="border">#2A3942</color>
-    <color name="danger">#FF6B5E</color>
-    <color name="ok">#2ECC8F</color>
-    <color name="bubble_mine">#4C4CD0</color>
-    <color name="bubble_theirs">#1F2C33</color>
+    <color name="brand">#0A84FF</color>
+    <color name="brand2">#5E5CE6</color>
+    <color name="bg">#000000</color>
+    <color name="chat_bg">#000000</color>
+    <color name="surface">#1C1C1E</color>
+    <color name="surface2">#2C2C2E</color>
+    <color name="text">#FFFFFF</color>
+    <color name="text2">#98989F</color>
+    <color name="border">#38383A</color>
+    <color name="separator">#38383A</color>
+    <color name="input_border">#48484A</color>
+    <color name="icon_circle">#1C1C1E</color>
+    <color name="name_pill">#1C1C1E</color>
+    <color name="danger">#FF453A</color>
+    <color name="ok">#30D158</color>
+    <color name="bubble_mine">#0A84FF</color>
+    <color name="bubble_mine_start">#1493FF</color>
+    <color name="bubble_mine_end">#0066F0</color>
+    <color name="bubble_theirs">#26252A</color>
     <color name="white">#FFFFFF</color>
 </resources>

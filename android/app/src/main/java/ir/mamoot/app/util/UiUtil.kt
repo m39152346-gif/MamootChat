@@ -96,9 +96,10 @@ object UiUtil {
 
     /** Deterministic avatar color (ARGB) from a stable seed. */
     fun avatarColor(seed: String): Int {
+        // iOS system colors: vivid on white, still readable with white initials.
         val palette = intArrayOf(
-            0xFF5B5BD6.toInt(), 0xFF0E7490.toInt(), 0xFFB45309.toInt(), 0xFF15803D.toInt(),
-            0xFFBE185D.toInt(), 0xFF0369A1.toInt(), 0xFFA16207.toInt(), 0xFF7C3AED.toInt(),
+            0xFF007AFF.toInt(), 0xFF34C759.toInt(), 0xFFFF9500.toInt(), 0xFFFF2D55.toInt(),
+            0xFFAF52DE.toInt(), 0xFF32ADE6.toInt(), 0xFFFF3B30.toInt(), 0xFF5856D6.toInt(),
         )
         var hash = 0
         for (ch in seed) hash = hash * 31 + ch.code

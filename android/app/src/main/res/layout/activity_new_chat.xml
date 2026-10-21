@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="@color/surface"
     android:orientation="vertical">
 
     <LinearLayout
@@ -16,13 +16,18 @@
 
         <Button
             android:id="@+id/btnBackNew"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="44dp"
-            android:layout_height="48dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/icon_circle_bg"
             android:contentDescription="بازگشت"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="›"
-            android:textColor="@color/text"
-            android:textSize="26sp" />
+            android:textColor="@color/brand"
+            android:textSize="24sp"
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -36,25 +41,32 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="13dp"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="12dp"
-        android:layout_marginEnd="13dp"
-        android:orientation="horizontal">
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/segmented_bg"
+        android:orientation="horizontal"
+        android:padding="4dp">
 
         <Button
             android:id="@+id/btnNewModeDm"
+            style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="44dp"
             android:layout_weight="1"
-            android:text="💬 گفتگوی خصوصی" />
+            android:text="💬 گفتگوی خصوصی"
+            android:textColor="@color/text"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnNewModeGroup"
+            style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_height="44dp"
             android:layout_weight="1"
-            android:text="👥 ساخت گروه" />
+            android:text="👥 ساخت گروه"
+            android:textColor="@color/text"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout
@@ -119,6 +131,6 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:background="@color/surface"
-        android:divider="@color/border"
+        android:divider="@color/separator"
         android:dividerHeight="1dp" />
 </LinearLayout>
