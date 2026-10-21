@@ -45,7 +45,7 @@ class ConversationAdapter(
         avatar.text = UiUtil.initials(item.title)
         avatar.background.mutate().setTint(UiUtil.avatarColor(seed))
 
-        val onlineDot = view.findViewById<View>(R.id/viewOnlineDot)
+        val onlineDot = view.findViewById<View>(R.id.viewOnlineDot)
         val peer = item.peer
         onlineDot.visibility = if (
             peer != null && peer.lastSeenPublic && UiUtil.isOnline(peer.lastSeenAt)
