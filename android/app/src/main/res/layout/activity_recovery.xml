@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/chat_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <ImageView
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_marginTop="@dimen/space_xxl"
+            android:background="@drawable/logo_circle"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:padding="22dp"
+            android:src="@drawable/ic_key"
+            android:tint="@color/white" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_l"
+            android:gravity="center"
+            android:text="@string/recovery_view0_text"
+            android:textColor="@color/text"
+            android:textSize="@dimen/text_headline"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_m"
+            android:text="@string/recovery_view1_text"
+            android:textColor="@color/text2"
+            android:textSize="@dimen/text_body_s" />
+
+        <Button
+            android:id="@+id/btnRecoverBackup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xxl"
+            android:backgroundTint="@color/brand_button"
+            android:text="@string/recovery_btnrecoverbackup_text"
+            android:textColor="@color/white" />
+
+        <Button
+            android:id="@+id/btnRecoverNewKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_m"
+            android:backgroundTint="@color/danger_button"
+            android:text="@string/recovery_btnrecovernewkey_text"
+            android:textColor="@color/white" />
+    </LinearLayout>
+</ScrollView>

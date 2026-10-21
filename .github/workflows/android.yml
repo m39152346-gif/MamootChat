@@ -1,0 +1,173 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "arena/**"
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Install Android SDK packages (runner-provided SDK)
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            echo "ANDROID_HOME=${ANDROID_HOME:-}"
+            echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+            SDKMANAGER="$(command -v sdkmanager || true)"
+            if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_HOME:-}" ]; then
+              SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+            fi
+            echo "sdkmanager=$SDKMANAGER"
+            ls "${ANDROID_HOME:-/nonexistent}" || true
+            yes | "$SDKMANAGER" --licenses > /dev/null || true
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          } 2>&1 | tee "$RUNNER_TEMP/sdk.log"
+          exit "${PIPESTATUS[0]}"
+
+      - name: Prepare signing key
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/signing"
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "Using permanent signing key from repository secrets."
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/release.p12"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: generating an ephemeral in-runner key. Updates over previous builds will require uninstall until a permanent key is configured."
+            PW="$(openssl rand -hex 24)"
+            echo "EPHEMERAL_KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/signing/release.p12" -storetype PKCS12 \
+              -alias mamoot -keyalg RSA -keysize 3072 -validity 10000 \
+              -storepass "$PW" -keypass "$PW" \
+              -dname "CN=Mamoot, O=MamootChat" > /dev/null
+          fi
+
+      - name: Unit tests + build release APK
+        shell: bash
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/signing/release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -uo pipefail
+          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then export ANDROID_KEYSTORE_PASSWORD="${EPHEMERAL_KEYSTORE_PASSWORD:-}"; fi
+          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then export ANDROID_KEY_PASSWORD="${EPHEMERAL_KEYSTORE_PASSWORD:-}"; fi
+          if [ -z "${ANDROID_KEY_ALIAS:-}" ]; then export ANDROID_KEY_ALIAS="mamoot"; fi
+          gradle :app:testDebugUnitTest :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+          exit "${PIPESTATUS[0]}"
+
+      - name: Verify APK and collect outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          APK_SRC="$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)"
+          echo "Built: $APK_SRC"
+          cp "$APK_SRC" "$RUNNER_TEMP/out/mamoot.apk"
+          (cd "$RUNNER_TEMP/out" && sha256sum mamoot.apk > SHA256.txt)
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n1)"
+          {
+            echo "== aapt badging =="
+            "$BT/aapt" dump badging "$RUNNER_TEMP/out/mamoot.apk" | head -n 20 || true
+            echo
+            echo "== zipalign check =="
+            "$BT/zipalign" -c -v 4 "$RUNNER_TEMP/out/mamoot.apk" | tail -n 3 || true
+            echo
+            echo "== apksigner verify =="
+            "$BT/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/out/mamoot.apk" || true
+            echo
+            echo "== unit test results =="
+            grep -h -E "testsuite " android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null | sed -E 's/.*name="([^"]+)".*tests="([0-9]+)".*failures="([0-9]+)".*errors="([0-9]+)".*/suite=\1 tests=\2 failures=\3 errors=\4/' || true
+            echo
+            echo "== apk size =="
+            ls -lh "$RUNNER_TEMP/out/mamoot.apk"
+          } > "$RUNNER_TEMP/out/VERIFICATION.txt" 2>&1
+          cat "$RUNNER_TEMP/out/VERIFICATION.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mamoot-apk
+          path: |
+            ${{ runner.temp }}/out/mamoot.apk
+            ${{ runner.temp }}/out/SHA256.txt
+            ${{ runner.temp }}/out/VERIFICATION.txt
+          if-no-files-found: error
+
+      - name: Publish APK to apk-latest branch (git-fetchable copy)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/out"
+          git init -q -b apk-latest .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          {
+            echo "# Mamoot Android build"
+            echo
+            echo "Built from commit $GITHUB_SHA (ref $GITHUB_REF)."
+            echo "Files: mamoot.apk, SHA256.txt, VERIFICATION.txt"
+          } > README.md
+          git add mamoot.apk SHA256.txt VERIFICATION.txt README.md
+          git commit -q -m "Android APK from $GITHUB_SHA"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:apk-latest
+
+      # Audit F15: only publish logs when something actually failed.
+      - name: Publish CI logs to ci-logs branch (on failure)
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          LOGDIR="$RUNNER_TEMP/cilogs"
+          mkdir -p "$LOGDIR"
+          {
+            echo "commit=$GITHUB_SHA ref=$GITHUB_REF run=$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT"
+            echo "job_status=${{ job.status }}"
+            date -u
+          } > "$LOGDIR/INFO.txt"
+          for f in "$RUNNER_TEMP/sdk.log" "$RUNNER_TEMP/gradle.log"; do
+            if [ -f "$f" ]; then tail -c 400000 "$f" > "$LOGDIR/$(basename "$f")"; fi
+          done
+          if [ -d android/app/build/reports/tests ]; then
+            find android/app/build/reports/tests -name '*.html' -exec cp {} "$LOGDIR/" \; 2>/dev/null || true
+          fi
+          if [ -d android/app/build/test-results ]; then
+            grep -h -E "testsuite |failure |error " android/app/build/test-results/testDebugUnitTest/*.xml > "$LOGDIR/test-results.txt" 2>/dev/null || true
+          fi
+          cd "$LOGDIR"
+          git init -q -b ci-logs .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "CI logs for $GITHUB_SHA" || exit 0
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-logs || true

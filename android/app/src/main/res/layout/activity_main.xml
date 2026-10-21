@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/hero_gradient">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Aurora gradient hero header. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="@dimen/space_xl"
+            android:paddingTop="@dimen/space_l"
+            android:paddingEnd="14dp"
+            android:paddingBottom="40dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:background="@drawable/glass_circle_bg"
+                    android:importantForAccessibility="no"
+                    android:gravity="center"
+                    android:text="م"
+                    android:textColor="@color/white"
+                    android:textSize="@dimen/text_title"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:text="@string/app_name"
+                    android:textColor="@color/white"
+                    android:textSize="@dimen/text_title"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnSettings"
+                    android:layout_width="@dimen/touch_min"
+                    android:layout_height="@dimen/touch_min"
+                    android:background="@drawable/glass_circle_bg"
+                    android:contentDescription="@string/main_btnsettings_desc"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_sliders"
+                    android:tint="@color/white" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="@string/main_view0_text"
+                android:textColor="@color/white"
+                android:textSize="@dimen/text_display"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="@string/main_view1_text"
+                android:textColor="@color/on_brand_muted"
+                android:textSize="@dimen/text_label" />
+        </LinearLayout>
+
+        <!-- Rounded sheet floating over the hero. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="-24dp"
+            android:layout_weight="1"
+            android:background="@drawable/sheet_bg"
+            android:elevation="6dp"
+            android:orientation="vertical"
+            android:paddingTop="10dp">
+
+            <!-- First-load spinner (before it we cannot tell empty from loading). -->
+            <ProgressBar
+                android:id="@+id/progressMain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="40dp"
+                android:contentDescription="@string/main_progressmain_desc"
+                android:visibility="gone" />
+
+            <!-- Network error is NOT the empty state: precise message + retry. -->
+            <LinearLayout
+                android:id="@+id/layoutMainError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_m"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="@dimen/space_m"
+                android:background="@color/surface2"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="@dimen/space_m"
+                android:paddingTop="@dimen/space_xs"
+                android:paddingEnd="@dimen/space_xs"
+                android:paddingBottom="@dimen/space_xs"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvMainError"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/danger"
+                    android:textSize="@dimen/text_label" />
+
+                <Button
+                    android:id="@+id/btnMainRetry"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+            android:minHeight="@dimen/touch_min"
+                    android:text="@string/main_btnmainretry_text"
+                    android:textColor="@color/brand" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tvEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="28dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="230dp"
+                    android:layout_height="150dp"
+                    android:contentDescription="@null"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/img_empty_chats" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center"
+                    android:text="@string/main_view2_text"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_title"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.5"
+                    android:text="@string/main_view3_text"
+                    android:textColor="@color/text2"
+                    android:textSize="@dimen/text_body_s" />
+            </LinearLayout>
+
+            <ListView
+                android:id="@+id/lvConversations"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:paddingBottom="96dp"
+                android:scrollbars="none" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/btnNewChat"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="@dimen/space_xl"
+        android:layout_marginBottom="@dimen/space_xxl"
+        android:background="@drawable/compose_circle_bg"
+        android:contentDescription="@string/main_btnnewchat_desc"
+        android:elevation="8dp"
+        android:padding="17dp"
+        android:src="@drawable/ic_compose"
+        android:tint="@color/white" />
+</FrameLayout>

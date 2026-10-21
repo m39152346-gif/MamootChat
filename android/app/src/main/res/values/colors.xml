@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mamoot design tokens — iMessage-inspired (see docs/UI_DESIGN.md).
+  Light: pure-white chat canvas, iOS system grays, vivid blue bubbles.
+-->
+<resources>
+    <color name="brand">#0066E0</color>
+    <!-- brand_button: fill for white-labelled primary buttons (white on it = 5.28:1). -->
+    <color name="brand_button">#0066E0</color>
+    <color name="danger_button">#D93025</color>
+    <color name="brand2">#5E5CE6</color>
+    <color name="bg">#F2F2F7</color>
+    <color name="chat_bg">#FFFFFF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface2">#F2F2F7</color>
+    <color name="text">#111113</color>
+    <color name="text2">#636369</color>
+    <color name="border">#E5E5EA</color>
+    <color name="separator">#E5E5EA</color>
+    <color name="input_border">#7A7A81</color>
+    <color name="icon_circle">#F2F2F7</color>
+    <color name="name_pill">#F2F2F7</color>
+    <color name="danger">#D93025</color>
+    <color name="ok">#1E7E34</color>
+    <color name="bubble_mine">#0066E0</color>
+    <color name="bubble_mine_start">#0069D2</color>
+    <color name="bubble_mine_end">#0057D9</color>
+    <color name="bubble_theirs">#E9E9EB</color>
+    <color name="wall_start">#F8FAFF</color>
+    <color name="wall_center">#F1F4FF</color>
+    <color name="wall_end">#E9EEFF</color>
+    <color name="on_brand_muted">#F2F7FF</color>
+    <color name="white">#FFFFFF</color>
+</resources>

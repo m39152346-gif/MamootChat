@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/chat_wallpaper"
+    android:orientation="vertical">
+
+    <!--
+      iMessage-style centered header (Figma reference): avatar + name pill
+      + status stacked in the center, circular icon buttons on both sides.
+    -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="104dp"
+        android:background="@color/surface"
+        android:elevation="4dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="@dimen/space_s"
+            android:paddingBottom="10dp">
+
+            <TextView
+                android:id="@+id/tvChatAvatar"
+                android:layout_width="@dimen/avatar_s"
+                android:layout_height="@dimen/avatar_s"
+                android:background="@drawable/avatar_circle"
+                android:gravity="center"
+                android:textColor="@color/white"
+                android:textSize="@dimen/text_body"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/layoutChatHeader"
+                android:contentDescription="@string/chat_layoutchatheader_desc"
+                android:focusable="true"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:background="@drawable/name_pill_bg"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="@dimen/space_m"
+                android:paddingTop="@dimen/space_xs"
+                android:paddingEnd="@dimen/space_s"
+                android:paddingBottom="@dimen/space_xs">
+
+                <TextView
+                    android:id="@+id/tvChatTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textDirection="firstStrong"
+                    android:maxWidth="150dp"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_subtitle"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp"
+                    android:importantForAccessibility="no"
+                    android:text="‹"
+                    android:textColor="@color/text2"
+                    android:textSize="@dimen/text_body" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvChatStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:maxWidth="190dp"
+                android:textColor="@color/text2"
+                android:textSize="@dimen/text_meta" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="@dimen/space_m"
+            android:background="@drawable/icon_circle_bg"
+            android:contentDescription="@string/chat_btnback_desc"
+            android:padding="14dp"
+            android:src="@drawable/ic_chevron_rtl"
+            android:tint="@color/brand" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="@dimen/space_m"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnChatSearch"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="@string/chat_btnchatsearch_desc"
+                android:padding="14dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/text2" />
+
+            <ImageButton
+                android:id="@+id/btnSecurity"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
+                android:layout_marginStart="@dimen/space_s"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="@string/chat_btnsecurity_desc"
+                android:padding="14dp"
+                android:src="@drawable/ic_lock"
+                android:tint="@color/text2" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_gravity="bottom"
+            android:background="@color/separator" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/layoutBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface2"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvBannerText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text"
+            android:textSize="@dimen/text_label" />
+
+        <Button
+            android:id="@+id/btnBannerAction"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_s"
+            android:backgroundTint="@color/brand_button"
+            android:textColor="@color/white"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/layoutSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/chat_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="@dimen/space_s"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etChatSearch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/field_bg"
+            android:hint="@string/chat_etchatsearch_hint"
+            android:inputType="text"
+            android:padding="10dp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text2" />
+
+        <ImageButton
+            android:id="@+id/btnSearchPrev"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_btnsearchprev_desc"
+            android:padding="@dimen/space_m"
+            android:src="@drawable/ic_chevron_up"
+            android:tint="@color/text" />
+
+        <ImageButton
+            android:id="@+id/btnSearchNext"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_btnsearchnext_desc"
+            android:padding="@dimen/space_m"
+            android:src="@drawable/ic_chevron_down"
+            android:tint="@color/text" />
+
+        <ImageButton
+            android:id="@+id/btnSearchClose"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_btnsearchclose_desc"
+            android:padding="@dimen/space_m"
+            android:src="@drawable/ic_close"
+            android:tint="@color/text" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnLoadOlder"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+            android:minHeight="@dimen/touch_min"
+        android:layout_gravity="center_horizontal"
+        android:text="@string/chat_btnloadolder_text"
+        android:textColor="@color/brand"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/lvMessages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="10dp"
+            android:scrollbars="none" />
+
+        <!-- Animated three-dot typing bubble (peer messages side). -->
+        <LinearLayout
+            android:id="@+id/layoutTyping"
+            android:contentDescription="@string/chat_layouttyping_desc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="@dimen/space_l"
+            android:layout_marginBottom="@dimen/space_s"
+            android:background="@drawable/bubble_theirs"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="14dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <TextView android:id="@+id/tvTypeDot1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/space_xs" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/space_xs" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+        </LinearLayout>
+
+        <!-- Telegram-style scroll-to-bottom with unread-below badge. -->
+        <FrameLayout
+            android:id="@+id/layoutScrollDown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="14dp"
+            android:layout_marginBottom="@dimen/space_m"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/btnScrollDown"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
+                android:background="@drawable/icon_circle_bg"
+                android:contentDescription="@string/chat_btnscrolldown_desc"
+                android:elevation="5dp"
+                android:padding="13dp"
+                android:src="@drawable/ic_chevron_down"
+                android:tint="@color/text" />
+
+            <TextView
+                android:id="@+id/tvScrollBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="19dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/badge_bg"
+                android:gravity="center"
+                android:minWidth="19dp"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:textColor="@color/white"
+                android:textSize="@dimen/text_meta"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/layoutReply"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="7dp"
+        android:paddingEnd="6dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvReplyQuote"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/text2"
+            android:textSize="@dimen/text_caption" />
+
+        <ImageButton
+            android:id="@+id/btnCancelReply"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_btncancelreply_desc"
+            android:padding="14dp"
+            android:src="@drawable/ic_close"
+            android:tint="@color/text2" />
+    </LinearLayout>
+
+    <!-- Floating composer card: detached pill + circular blue send. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="@dimen/space_xs"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/composer_card_bg"
+        android:elevation="7dp"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/space_s"
+        android:paddingTop="6dp"
+        android:paddingEnd="@dimen/space_s"
+        android:paddingBottom="6dp">
+
+        <EditText
+            android:id="@+id/etMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="@string/chat_etmessage_hint"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="4"
+            android:minHeight="@dimen/touch_min"
+            android:paddingStart="@dimen/space_l"
+            android:paddingTop="9dp"
+            android:paddingEnd="@dimen/space_l"
+            android:paddingBottom="9dp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/text2"
+            android:textSize="@dimen/text_body" />
+
+        <ImageButton
+            android:id="@+id/btnTtl"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/icon_circle_bg"
+            android:contentDescription="@string/chat_btnttl_desc"
+            android:padding="14dp"
+            android:src="@drawable/ic_timer"
+            android:tint="@color/text2"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btnSend"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/send_circle_bg"
+            android:contentDescription="@string/chat_btnsend_desc"
+            android:padding="13dp"
+            android:src="@drawable/ic_send_up"
+            android:tint="@color/white" />
+    </LinearLayout>
+</LinearLayout>

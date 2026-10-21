@@ -1,0 +1,120 @@
+package ir.mamoot.app.sync
+
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.job.JobInfo
+import android.app.job.JobParameters
+import android.app.job.JobScheduler
+import android.app.job.JobService
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import ir.mamoot.app.MamootApp
+import ir.mamoot.app.R
+import ir.mamoot.app.Threads
+import ir.mamoot.app.ui.MainActivity
+import java.util.concurrent.TimeUnit
+
+/**
+ * Play-Services-free background checks (FCM is unreliable/unavailable for many
+ * users in Iran). Runs at most every 15 minutes, performs ONE small request,
+ * and posts a content-free notification. Decrypted text is never shown in
+ * notifications.
+ */
+class BackgroundCheckJob : JobService() {
+    override fun onStartJob(params: JobParameters?): Boolean {
+        val app = application as? MamootApp
+        if (app == null || app.api.session == null) {
+            jobFinished(params, false)
+            return false
+        }
+        Threads.runIo {
+            try {
+                val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                // F9.3/F10: one ~73-byte summary instead of the full
+                // conversation list, and compare the newest unread
+                // timestamp. A bare count misses read-one-receive-one
+                // (equal count, no notification). Falls back to the list
+                // only on backends without unread_summary().
+                val summary = try {
+                    app.api.unreadSummary()
+                } catch (e: Exception) {
+                    null
+                }
+                if (summary != null) {
+                    val lastNewest = prefs.getString(KEY_LAST_NEWEST, null)
+                    if (summary.total > 0 && summary.newestAt != null &&
+                        summary.newestAt != lastNewest
+                    ) {
+                        showNotification(summary.topConversationId)
+                    }
+                    prefs.edit()
+                        .putString(KEY_LAST_NEWEST, summary.newestAt)
+                        .putInt(KEY_LAST_UNREAD, summary.total.toInt())
+                        .apply()
+                } else {
+                    val conversations = app.api.listConversations()
+                    val total = conversations.sumOf { it.unreadCount }
+                    val lastNotified = prefs.getInt(KEY_LAST_UNREAD, 0)
+                    if (total > lastNotified && total > 0) {
+                        val target = conversations.filter { it.unreadCount > 0 }
+                            .maxByOrNull { it.unreadCount }?.id
+                        showNotification(target)
+                    }
+                    prefs.edit().putInt(KEY_LAST_UNREAD, total).apply()
+                }
+            } catch (e: Exception) {
+                // Offline etc.: try again next period.
+            } finally {
+                jobFinished(params, false)
+            }
+        }
+        return true // work continues on our IO thread
+    }
+
+    override fun onStopJob(params: JobParameters?): Boolean = true
+
+    private fun showNotification(targetConversationId: String?) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (targetConversationId != null) putExtra(MamootApp.EXTRA_OPEN_CONV, targetConversationId)
+        }
+        val pending = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = Notification.Builder(this, MamootApp.CHANNEL_MESSAGES)
+            .setSmallIcon(R.drawable.ic_stat_mamoot)
+            .setContentTitle("مموت")
+            .setContentText("پیام جدید دارید")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .build()
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.notify(MamootApp.NOTIFICATION_ID, notification)
+    }
+
+    companion object {
+        private const val JOB_ID = 4201
+        private const val PREFS = "mamoot_bg"
+        private const val KEY_LAST_UNREAD = "last_unread"
+        private const val KEY_LAST_NEWEST = "last_newest_unread"
+
+        fun schedule(context: Context) {
+            val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
+            if (scheduler.allPendingJobs.any { it.id == JOB_ID }) return
+            val job = JobInfo.Builder(JOB_ID, ComponentName(context, BackgroundCheckJob::class.java))
+                .setPeriodic(TimeUnit.MINUTES.toMillis(15), TimeUnit.MINUTES.toMillis(5))
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setPersisted(true)
+                .build()
+            scheduler.schedule(job)
+        }
+
+        fun cancel(context: Context) {
+            context.getSystemService(JobScheduler::class.java)?.cancel(JOB_ID)
+        }
+    }
+}

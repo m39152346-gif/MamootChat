@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">مموت</string>
+
+    <!-- Migrated from layout literals in 0.5.2 (docs/audit/strings-migration-0.5.2.txt).
+         Dynamic/Kotlin-built strings (dialogs, toasts) are still in code by design
+         of the existing structure; migrate opportunistically. -->
+    <string name="auth_btnforgot_text" formatted="false">رمز عبور را فراموش کرده‌ام</string>
+    <string name="auth_btnmodelogin_text" formatted="false">ورود</string>
+    <string name="auth_btnmodesignup_text" formatted="false">ثبت‌نام</string>
+    <string name="auth_btnprofilelogout_text" formatted="false">خروج از حساب</string>
+    <string name="auth_btnprofilesubmit_text" formatted="false">شروع گفتگو</string>
+    <string name="auth_cbshowpassword_text" formatted="false">نمایش رمز عبور</string>
+    <string name="auth_etpassword_hint" formatted="false">رمز عبور (حداقل ۸ نویسه، حرف و عدد)</string>
+    <string name="auth_etprofileusername_hint" formatted="false">نام کاربری (انگلیسی)</string>
+    <string name="auth_etusername_hint" formatted="false">نام کاربری (انگلیسی، مثل mamoot_42)</string>
+    <string name="auth_lbldisplayname_text" formatted="false">نام نمایشی</string>
+    <string name="auth_lblemail_text" formatted="false">ایمیل</string>
+    <string name="auth_lblpassword_text" formatted="false">رمز عبور</string>
+    <string name="auth_lblusername_text" formatted="false">نام کاربری</string>
+    <string name="auth_view0_text" formatted="false">چت متنی امن با رمزنگاری سرتاسری؛ فقط متن، بدون حاشیه.</string>
+    <string name="auth_view1_text" formatted="false">تکمیل پروفایل</string>
+    <string name="auth_view2_text" formatted="false">پیام‌های خصوصی روی همین گوشی رمزنگاری می‌شوند؛ سرور فقط متن رمز شده را می‌بیند.</string>
+    <string name="chat_btnback_desc" formatted="false">بازگشت</string>
+    <string name="chat_btncancelreply_desc" formatted="false">لغو پاسخ</string>
+    <string name="chat_btnchatsearch_desc" formatted="false">جستجو در گفتگو</string>
+    <string name="chat_btnloadolder_text" formatted="false">نمایش پیام‌های قدیمی‌تر ↑</string>
+    <string name="chat_btnscrolldown_desc" formatted="false">رفتن به تازه‌ترین پیام</string>
+    <string name="chat_btnsearchclose_desc" formatted="false">بستن جستجو</string>
+    <string name="chat_btnsearchnext_desc" formatted="false">نتیجه‌ی بعدی</string>
+    <string name="chat_btnsearchprev_desc" formatted="false">نتیجه‌ی قبلی</string>
+    <string name="chat_btnsecurity_desc" formatted="false">امنیت گفتگو</string>
+    <string name="chat_btnsend_desc" formatted="false">ارسال</string>
+    <string name="chat_btnttl_desc" formatted="false">حذف خودکار پیام</string>
+    <string name="chat_etchatsearch_hint" formatted="false">جستجو در این گفتگو…</string>
+    <string name="chat_etmessage_hint" formatted="false">پیام بنویسید…</string>
+    <string name="chat_layoutchatheader_desc" formatted="false">اطلاعات گفتگو</string>
+    <string name="chat_layouttyping_desc" formatted="false">در حال نوشتن است</string>
+    <string name="lock_btnbiometric_text" formatted="false">ورود با اثر انگشت / چهره</string>
+    <string name="lock_btnforgotpin_text" formatted="false">رمز قفل را فراموش کرده‌ام</string>
+    <string name="lock_btnunlock_text" formatted="false">باز کردن</string>
+    <string name="lock_etpin_hint" formatted="false">رمز قفل</string>
+    <string name="lock_view0_text" formatted="false">مموت قفل است</string>
+    <string name="lock_view1_text" formatted="false">رمز قفل برنامه را وارد کنید</string>
+    <string name="main_btnmainretry_text" formatted="false">تلاش دوباره</string>
+    <string name="main_btnnewchat_desc" formatted="false">گفتگوی جدید</string>
+    <string name="main_btnsettings_desc" formatted="false">تنظیمات</string>
+    <string name="main_progressmain_desc" formatted="false">در حال بارگذاری گفتگوها</string>
+    <string name="main_view0_text" formatted="false">پیام‌ها</string>
+    <string name="main_view1_text" formatted="false">سریع، امن و فقط متن — چت امن با قفل مشخص است.</string>
+    <string name="main_view2_text" formatted="false">هنوز گفتگویی ندارید</string>
+    <string name="main_view3_text" formatted="false">با دکمه‌ی شناورِ پایین صفحه اولین گفتگو را شروع کنید؛\nهر وقت خواستید همان‌جا چت امن را هم فعال کنید.</string>
+    <string name="newchat_btncreategroup_text" formatted="false">ساخت گروه (۰ عضو انتخاب شده)</string>
+    <string name="newchat_btnnewmodedm_text" formatted="false">گفتگوی خصوصی</string>
+    <string name="newchat_btnnewmodegroup_text" formatted="false">ساخت گروه</string>
+    <string name="newchat_etgrouptitle_hint" formatted="false">نام گروه</string>
+    <string name="newchat_etsearch_hint" formatted="false">جستجو با نام یا نام کاربری (حداقل ۲ حرف)…</string>
+    <string name="newchat_tvsearchhint_text" formatted="false">نام کاربری مخاطب را جستجو کنید.</string>
+    <string name="recovery_btnrecoverbackup_text" formatted="false">بازیابی از فایل پشتیبان</string>
+    <string name="recovery_btnrecovernewkey_text" formatted="false">ساخت کلید تازه و ادامه</string>
+    <string name="recovery_view0_text" formatted="false">کلید رمزنگاری این گوشی خوانده نشد</string>
+    <string name="recovery_view1_text" formatted="false">کلید هویت چت‌های امن روی این دستگاه هست اما دیگر قابل خواندن نیست (مثلاً بعد از تغییر قفل صفحه یا خرابی حافظه امن). مموت کلید را خودکار عوض نمی‌کند؛ اول شما تصمیم بگیرید:\n\n• اگر فایل «پشتیبان رمزنگاری‌شده» دارید: با همان فایل بازیابی کنید تا همان کلید و تاریخچه برگردد.\n\n• اگر پشتیبان ندارید: می‌توانید کلید تازه بسازید. در این صورت چت‌های امن قبلی روی این گوشی دیگر باز نمی‌شوند و مخاطب‌ها باید کلید تازه شما را ببینند و بپذیرند.</string>
+    <string name="settings_btnadvancedsecurity_text" formatted="false">امنیت پیشرفته، پشتیبان و حریم خصوصی</string>
+    <string name="settings_btnapplock_text" formatted="false">قفل برنامه</string>
+    <string name="settings_btnblockedusers_text" formatted="false">کاربران مسدود</string>
+    <string name="settings_btnchangepassword_text" formatted="false">تغییر رمز عبور</string>
+    <string name="settings_btndeleteaccount_text" formatted="false">حذف حساب کاربری</string>
+    <string name="settings_btnlogout_text" formatted="false">خروج و پاک‌کردن داده‌های این گوشی</string>
+    <string name="settings_btnsavesettings_text" formatted="false">ذخیره تغییرات</string>
+    <string name="settings_view0_text" formatted="false">پروفایل و امنیت</string>
+    <string name="settings_view1_text" formatted="false">اطلاعات نمایشی</string>
+    <string name="settings_view2_text" formatted="false">حساب و امنیت</string>
+    <string name="user_tvuserlock_desc" formatted="false">امکان چت امن دارد</string>
+</resources>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مموت ۰٫۵٫۲ — پیش‌نمایش طراحی iMessage</title>
+<style>
+  * { box-sizing: border-box; margin: 0; font-family: Tahoma, "Segoe UI", system-ui, sans-serif; }
+  body { background: linear-gradient(135deg,#0b1220,#1b2a4a 55%,#3b2f6b); color: #fff; padding: 32px 16px 56px; }
+  header { max-width: 1200px; margin: 0 auto 8px; text-align: center; }
+  header h1 { font-size: clamp(26px,4vw,42px); font-weight: 800; }
+  header p { opacity: .82; margin-top: 10px; line-height: 2; font-size: 15px; }
+  .tokens { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:18px auto 30px; max-width:900px; }
+  .token { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); padding:7px 12px; border-radius:999px; font-size:12px; direction:ltr; }
+  .grid { display:flex; gap:28px; justify-content:center; flex-wrap:wrap; max-width:1250px; margin:0 auto; align-items:flex-start; }
+  figure { text-align:center; }
+  figcaption { margin-top:14px; font-weight:700; opacity:.92; }
+  .phone { width:350px; max-width:92vw; height:720px; border-radius:52px; padding:11px; background:#050507; box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 0 0 2px #3a3a3f; margin:0 auto; }
+  .screen { height:100%; border-radius:42px; overflow:hidden; display:flex; flex-direction:column; position:relative; background:linear-gradient(180deg,#F8FAFF,#EEF1FF); color:#111113; text-align:right; }
+  .screen.dark { background:linear-gradient(180deg,#05070F,#030409); color:#fff; }
+  .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:104px; height:28px; background:#000; border-radius:999px; z-index:5; }
+  .status { height:48px; padding:14px 24px 0; display:flex; justify-content:space-between; font-size:13px; font-weight:700; direction:ltr; }
+  /* chat header */
+  .chathead { position:relative; padding:6px 12px 10px; border-bottom:1px solid #E5E5EA; text-align:center; }
+  .dark .chathead { border-color:#26262a; }
+  .avatar { width:46px; height:46px; border-radius:50%; margin:0 auto; display:grid; place-items:center; color:#fff; font-weight:800; font-size:18px; background:linear-gradient(135deg,#FF9500,#FF2D55); }
+  .avatar.blue { background:linear-gradient(135deg,#0A84FF,#5E5CE6); }
+  .avatar.green { background:linear-gradient(135deg,#34C759,#0A84FF); }
+  .namepill { display:inline-flex; align-items:center; gap:3px; margin-top:6px; background:#F2F2F7; color:#111; border-radius:999px; padding:5px 12px 5px 9px; font-size:14px; font-weight:800; }
+  .dark .namepill { background:#1C1C1E; color:#fff; }
+  .namepill span { color:#8E8E93; font-size:17px; line-height:1; }
+  .presence { color:#8E8E93; font-size:11px; margin-top:3px; }
+  .iconbtn { position:absolute; top:38px; width:38px; height:38px; border-radius:50%; background:#F2F2F7; display:grid; place-items:center; color:#007AFF; font-size:24px; font-weight:800; }
+  .dark .iconbtn { background:#1C1C1E; }
+  .back { right:14px; } .acts { left:14px; display:flex; gap:8px; position:absolute; top:38px; }
+  .acts i { width:38px; height:38px; border-radius:50%; background:#F2F2F7; display:grid; place-items:center; font-style:normal; font-size:15px; }
+  .dark .acts i { background:#1C1C1E; }
+  /* messages */
+  .msgs { flex:1; padding:14px 16px 10px; display:flex; flex-direction:column; overflow:hidden; }
+  .day { align-self:center; color:#8E8E93; font-size:12px; font-weight:700; margin:2px 0 12px; }
+  .b { max-width:76%; padding:9px 14px; border-radius:18px; font-size:15.5px; line-height:1.65; margin-top:2px; width:fit-content; }
+  .b.first { margin-top:9px; }
+  .theirs { align-self:flex-start; background:#E9E9EB; color:#111; }
+  .theirs.last { border-bottom-right-radius:5px; }
+  .dark .theirs { background:#26252A; color:#fff; }
+  .mine { align-self:flex-end; color:#fff; background:linear-gradient(180deg,#0A84FF,#0062E6); }
+  .mine.last { border-bottom-left-radius:5px; }
+  .meta { align-self:flex-end; color:#8E8E93; font-size:11px; margin:3px 6px 0; }
+  .meta.l { align-self:flex-start; }
+  .tapback { align-self:flex-end; margin:-8px 0 0 12px; background:#fff; border:1px solid #E5E5EA; border-radius:999px; padding:2px 8px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.12); z-index:2; }
+  .dark .tapback { background:#1C1C1E; border-color:#38383A; }
+  .secure-note { align-self:center; background:#F2F2F7; color:#6b6b70; border-radius:999px; padding:5px 12px; font-size:11px; margin:10px 0 4px; }
+  .dark .secure-note { background:#1C1C1E; color:#98989F; }
+  /* composer */
+  .composer { display:flex; align-items:flex-end; gap:8px; padding:8px 12px 22px; }
+  .input { flex:1; border:1px solid #D1D1D6; border-radius:22px; padding:10px 16px; color:#8E8E93; font-size:15px; min-height:42px; }
+  .dark .input { border-color:#48484A; }
+  .ttl, .send { width:36px; height:36px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto; }
+  .ttl { background:#F2F2F7; font-size:14px; } .dark .ttl { background:#1C1C1E; }
+  .send { background:linear-gradient(180deg,#0A84FF,#0062E6); color:#fff; font-size:19px; font-weight:900; }
+  /* list */
+  .listhead { padding:2px 18px 6px; }
+  .brandrow { display:flex; align-items:center; gap:9px; height:50px; }
+  .logo { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#0A84FF,#5E5CE6); color:#fff; display:grid; place-items:center; font-weight:900; }
+  .gear { margin-inline-start:auto; width:38px; height:38px; border-radius:50%; background:#F2F2F7; display:grid; place-items:center; color:#8E8E93; }
+  .bigtitle { font-size:30px; font-weight:900; margin-top:2px; }
+  .subtitle { color:#8E8E93; font-size:12.5px; margin:3px 0 8px; }
+  .row { display:flex; gap:12px; padding:11px 16px 0; }
+  .row .avatar { width:54px; height:54px; margin:0; flex:0 0 auto; }
+  .rowmain { flex:1; min-width:0; border-bottom:1px solid #E5E5EA; padding-bottom:11px; }
+  .rowtop { display:flex; align-items:center; gap:6px; }
+  .rowname { font-weight:800; font-size:16px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rowtime { color:#8E8E93; font-size:12px; } .rowtime.blue { color:#007AFF; font-weight:700; }
+  .chev { color:#C7C7CC; font-size:18px; }
+  .preview { color:#8E8E93; font-size:13.5px; line-height:1.6; margin-top:2px; display:flex; gap:8px; }
+  .preview p { flex:1; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .badge { background:#007AFF; color:#fff; min-width:20px; height:20px; border-radius:999px; font-size:11px; font-weight:800; display:grid; place-items:center; padding:0 6px; }
+  .fab { position:absolute; bottom:24px; left:20px; width:58px; height:58px; border-radius:50%; background:linear-gradient(135deg,#0A84FF,#5E5CE6); color:#fff; display:grid; place-items:center; font-size:24px; box-shadow:0 10px 24px rgba(0,122,255,.35); }
+  footer { max-width:900px; margin:36px auto 0; text-align:center; line-height:2; opacity:.85; font-size:13.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>مموت ۰٫۵٫۲ — طراحی تازه به سبک iMessage</h1>
+  <p>الهام‌گرفته از فایل Figma «Apple chat messages ~ iMessage» و بومی‌سازی‌شده برای فارسیِ راست‌چین:<br>
+  فونت وزیرمتن، آیکون‌های وکتوری، والپیپر گرادیانی ملایم، هدر شناور با سایه، کامپوزر کارتِ شناور، انیمیشن ورود پیام‌ها و دارک‌مود سرمه‌ای عمیق.</p>
+</header>
+<div class="tokens">
+  <span class="token">mine #0A84FF → #0062E6</span><span class="token">theirs #E9E9EB / #26252A</span>
+  <span class="token">radius 18dp · tail 5dp</span><span class="token">canvas #FFFFFF / #000000</span>
+  <span class="token">brand #007AFF · accent #5E5CE6</span>
+</div>
+
+<div class="grid">
+  <!-- Chat light -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div><div class="status"><span>9:41</span><span>▰▰▰ ◠ ▭</span></div>
+      <div class="chathead">
+        <div class="iconbtn back">›</div>
+        <div class="avatar">س</div>
+        <div class="namepill">سارا محمدی <span>‹</span></div>
+        <div class="presence">آنلاین · چت امن فعال 🔒</div>
+        <div class="acts"><i>🔎</i><i>🔒</i></div>
+      </div>
+      <div class="msgs">
+        <div class="secure-note">🔒 این گفتگو با رمزنگاری سرتاسری امن است</div>
+        <div class="day">امروز</div>
+        <div class="b theirs">سلام! نسخه‌ی تازه‌ی مموت رو دیدی؟</div>
+        <div class="b theirs last">طراحیش کاملاً عوض شده 😍</div>
+        <div class="b mine first">آره! دقیقاً مثل iMessage شده</div>
+        <div class="b mine last">حباب آبی، هدر وسط‌چین، همه‌چیز تمیز و سریع ✨</div>
+        <div class="tapback">❤️</div>
+        <div class="meta">🔒 ۱۱:۲۲ · ✓✓ خوانده شد</div>
+        <div class="b theirs first last">عالیه، دارک‌مودش رو هم ببین →</div>
+      </div>
+      <div class="composer"><div class="input">پیام امن بنویسید… 🔒</div><div class="ttl">⏱</div><div class="send">↑</div></div>
+    </div></div>
+    <figcaption>چت امن — حالت روشن</figcaption>
+  </figure>
+
+  <!-- Chat dark -->
+  <figure>
+    <div class="phone"><div class="screen dark">
+      <div class="notch"></div><div class="status"><span>23:47</span><span>▰▰▰ ◠ ▭</span></div>
+      <div class="chathead">
+        <div class="iconbtn back">›</div>
+        <div class="avatar blue">ع</div>
+        <div class="namepill">علی رضایی <span>‹</span></div>
+        <div class="presence">در حال نوشتن…</div>
+        <div class="acts"><i>🔎</i><i>🔒</i></div>
+      </div>
+      <div class="msgs">
+        <div class="day">امروز</div>
+        <div class="b theirs last">هوای مشکیِ خالص توی شب خیلی چشم‌نوازه</div>
+        <div class="b mine first">دقیقاً مثل اسکرین‌شات مرجع 👌</div>
+        <div class="b mine last">حباب آبی روی مشکی می‌درخشه</div>
+        <div class="meta">🔒 ۲۳:۴۷ · ✓✓ خوانده شد</div>
+        <div class="b theirs first">پیام‌های پشت سر هم هم</div>
+        <div class="b theirs">چسبیده و گروه‌بندی‌شده میان</div>
+        <div class="b theirs last">فقط آخری دُم داره، مثل آیفون</div>
+      </div>
+      <div class="composer"><div class="input">پیام بنویسید…</div><div class="send">↑</div></div>
+    </div></div>
+    <figcaption>چت — حالت تیره (مشکی خالص)</figcaption>
+  </figure>
+
+  <!-- Conversation list -->
+  <figure>
+    <div class="phone"><div class="screen">
+      <div class="notch"></div><div class="status"><span>9:41</span><span>▰▰▰ ◠ ▭</span></div>
+      <div class="listhead">
+        <div class="brandrow"><div class="logo">م</div><b>مموت</b><div class="gear">⚙</div></div>
+        <div class="bigtitle">پیام‌ها</div>
+        <div class="subtitle">گفتگوهای شما؛ چت امن با 🔒 مشخص است.</div>
+      </div>
+      <div>
+        <div class="row"><div class="avatar">س</div><div class="rowmain">
+          <div class="rowtop"><span class="rowname">سارا محمدی 🔒</span><span class="rowtime blue">۱۱:۲۲</span><span class="chev">‹</span></div>
+          <div class="preview"><p>طراحیش کاملاً عوض شده 😍 دقیقاً مثل iMessage</p><span class="badge">۲</span></div></div></div>
+        <div class="row"><div class="avatar blue">ع</div><div class="rowmain">
+          <div class="rowtop"><span class="rowname">علی رضایی 🔒</span><span class="rowtime">دیروز</span><span class="chev">‹</span></div>
+          <div class="preview"><p>شما: حباب آبی روی مشکی می‌درخشه</p></div></div></div>
+        <div class="row"><div class="avatar green">گ</div><div class="rowmain">
+          <div class="rowtop"><span class="rowname">گروه خانواده</span><span class="rowtime">دیروز</span><span class="chev">‹</span></div>
+          <div class="preview"><p>مریم: جمعه همه خونه‌ی ما؟ 🍲</p></div></div></div>
+        <div class="row"><div class="avatar" style="background:linear-gradient(135deg,#AF52DE,#FF2D55)">ن</div><div class="rowmain">
+          <div class="rowtop"><span class="rowname">نگار کریمی</span><span class="rowtime">۱۴۰۵/۰۷/۲۸</span><span class="chev">‹</span></div>
+          <div class="preview"><p>فایل پشتیبان رو گرفتم، خیالم راحت شد ✓</p></div></div></div>
+      </div>
+      <div class="fab">✎</div>
+    </div></div>
+    <figcaption>لیست گفتگوها — تایتل بزرگ + دکمه شناور</figcaption>
+  </figure>
+</div>
+
+<footer>
+  این پیش‌نمایش دقیقاً همان توکن‌ها و چیدمان‌هایی است که در نسخهٔ اندروید ۰٫۵٫۲ پیاده شده‌اند
+  (colors.xml، حباب‌های gradient با دُم RTL/LTR، هدر وسط‌چین و گروه‌بندی پیام‌ها در MessageAdapter).<br>
+  جزئیات کامل در <b>docs/UI_DESIGN.md</b> مخزن آمده است.
+</footer>
+</body>
+</html>

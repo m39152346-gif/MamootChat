@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Gradient profile hero. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/hero_gradient"
+            android:orientation="vertical"
+            android:paddingStart="@dimen/space_l"
+            android:paddingTop="14dp"
+            android:paddingEnd="@dimen/space_l"
+            android:paddingBottom="34dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnBackSettings"
+                    android:layout_width="@dimen/touch_min"
+                    android:layout_height="@dimen/touch_min"
+                    android:background="@drawable/glass_circle_bg"
+                    android:contentDescription="@string/chat_btnback_desc"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_chevron_rtl"
+                    android:tint="@color/white" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/settings_view0_text"
+                    android:textColor="@color/white"
+                    android:textSize="@dimen/text_title"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvSettingsAvatar"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/avatar_circle"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:textColor="@color/white"
+                android:textSize="@dimen/text_display"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSettingsEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textColor="@color/on_brand_muted"
+                android:textSize="@dimen/text_label" />
+        </LinearLayout>
+
+        <!-- Sheet overlapping the hero. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-20dp"
+            android:background="@drawable/sheet_bg"
+            android:elevation="5dp"
+            android:orientation="vertical"
+            android:padding="@dimen/space_xl">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_view1_text"
+                android:textColor="@color/text"
+                android:textSize="@dimen/text_body"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etSettingsDisplay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_m"
+                android:background="@drawable/field_bg"
+                android:hint="@string/auth_lbldisplayname_text"
+                android:inputType="textPersonName"
+                android:maxLength="50"
+                android:padding="14dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text2" />
+
+            <EditText
+                android:id="@+id/etSettingsUsername"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/field_bg"
+                android:hint="@string/auth_etprofileusername_hint"
+                android:inputType="text"
+                android:maxLength="24"
+                android:padding="14dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text2" />
+
+            <TextView
+                android:id="@+id/tvSettingsError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/danger"
+                android:textSize="@dimen/text_body_s"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/btnSaveSettings"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/btn_primary_bg"
+                android:text="@string/settings_btnsavesettings_text"
+                android:textColor="@color/white"
+                android:textSize="@dimen/text_body"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvIdentityInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_xl"
+                android:background="@drawable/field_bg"
+                android:lineSpacingMultiplier="1.55"
+                android:padding="@dimen/space_l"
+                android:textColor="@color/text2"
+                android:textSize="@dimen/text_caption" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_xxl"
+                android:text="@string/settings_view2_text"
+                android:textColor="@color/text"
+                android:textSize="@dimen/text_body"
+                android:textStyle="bold" />
+
+            <!-- iOS-Settings-style grouped card with vector icons. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/card_bg"
+                android:elevation="2dp"
+                android:orientation="vertical"
+                android:paddingStart="6dp"
+                android:paddingTop="@dimen/space_xs"
+                android:paddingEnd="6dp"
+                android:paddingBottom="@dimen/space_xs">
+
+                <Button
+                    android:id="@+id/btnChangePassword"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:drawableStart="@drawable/ic_key"
+                    android:drawablePadding="12dp"
+                    android:drawableTint="@color/brand"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/settings_btnchangepassword_text"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_subtitle" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
+
+                <Button
+                    android:id="@+id/btnAppLock"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:drawableStart="@drawable/ic_lock"
+                    android:drawablePadding="12dp"
+                    android:drawableTint="@color/ok"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/settings_btnapplock_text"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_subtitle" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
+
+                <Button
+                    android:id="@+id/btnAdvancedSecurity"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:drawableStart="@drawable/ic_shield"
+                    android:drawablePadding="12dp"
+                    android:drawableTint="@color/brand2"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/settings_btnadvancedsecurity_text"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_subtitle" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
+
+                <Button
+                    android:id="@+id/btnBlockedUsers"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:drawableStart="@drawable/ic_block"
+                    android:drawablePadding="12dp"
+                    android:drawableTint="@color/danger"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/settings_btnblockedusers_text"
+                    android:textColor="@color/text"
+                    android:textSize="@dimen/text_subtitle" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="48dp" android:background="@color/separator" />
+
+                <Button
+                    android:id="@+id/btnDeleteAccount"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:drawableStart="@drawable/ic_trash"
+                    android:drawablePadding="12dp"
+                    android:drawableTint="@color/danger"
+                    android:gravity="start|center_vertical"
+                    android:text="@string/settings_btndeleteaccount_text"
+                    android:textColor="@color/danger"
+                    android:textSize="@dimen/text_subtitle" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnLogout"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="@dimen/space_xl"
+                android:drawableStart="@drawable/ic_logout"
+                android:drawablePadding="10dp"
+                android:drawableTint="@color/danger"
+                android:text="@string/settings_btnlogout_text"
+                android:textColor="@color/danger"
+                android:textSize="@dimen/text_subtitle" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
