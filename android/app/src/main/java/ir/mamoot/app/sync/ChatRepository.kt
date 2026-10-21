@@ -4,6 +4,7 @@ import ir.mamoot.app.Threads
 import ir.mamoot.app.crypto.BackupException
 import ir.mamoot.app.crypto.Crypto
 import ir.mamoot.app.crypto.DecryptException
+import ir.mamoot.app.crypto.BackupRules
 import ir.mamoot.app.crypto.SecureBackup
 import ir.mamoot.app.crypto.IdentityManager
 import ir.mamoot.app.crypto.SecretSession
@@ -93,6 +94,10 @@ class ChatRepository(
 
     @Volatile
     private var lastPresenceTouchMs = 0L
+
+    /** Set when the backend lacks sync_conversation() (pre-migration-6). */
+    @Volatile
+    private var syncRpcUnavailable = false
 
     private val myId: String
         get() = api.myUserId ?: throw ApiException("وارد نشده‌اید")
@@ -404,7 +409,8 @@ class ChatRepository(
         val peer = peerOf(conv) ?: return null
         val session = loadSession(conv.id, peer.id)
         val fingerprint = session.currentFingerprint() ?: return null
-        val peerKeyB64 = identity.peerPin(peer.id) ?: peer.e2eIdentityKey ?: return null
+        val peerKeyB64 = identity.peerPin(peer.id) ?: peer.e2eIdentityKey
+            ?: peerProfileCached(peer.id, force = false)?.e2eIdentityKey ?: return null
         return Crypto.safetyCode(identity.publicKey().encoded, Crypto.unb64(peerKeyB64), fingerprint)
     }
 
@@ -414,7 +420,8 @@ class ChatRepository(
      */
     fun safetyNumber(conv: Conversation): String? {
         val peer = peerOf(conv) ?: return null
-        val peerKeyB64 = identity.peerPin(peer.id) ?: peer.e2eIdentityKey ?: return null
+        val peerKeyB64 = identity.peerPin(peer.id) ?: peer.e2eIdentityKey
+            ?: peerProfileCached(peer.id, force = false)?.e2eIdentityKey ?: return null
         return try {
             Crypto.safetyNumber(myId, identity.publicKey().encoded, peer.id, Crypto.unb64(peerKeyB64))
         } catch (e: Exception) {
@@ -422,10 +429,19 @@ class ChatRepository(
         }
     }
 
+    /** True when stored identity material exists but cannot be read (F5). */
+    fun identityNeedsRecovery(): Boolean = identity.needsRecovery()
+
+    /** Explicit user-approved fresh identity from the recovery screen. */
+    fun regenerateIdentity() {
+        identity.rotateIdentity()
+    }
+
     fun createEncryptedBackup(passphrase: String, callback: (Result<String>) -> Unit) {
         ioCall(callback) {
-            if (passphrase.length < 8) {
-                throw ApiException("گذرواژه پشتیبان باید حداقل ۸ نویسه باشد.")
+            val issues = BackupRules.passphraseIssues(passphrase)
+            if (issues.isNotEmpty()) {
+                throw ApiException("گذرواژه پشتیبان ضعیف است: " + issues.joinToString("؛ ") + ".")
             }
             SecureBackup.encrypt(buildBackupPayload(), passphrase)
         }
@@ -566,6 +582,12 @@ class ChatRepository(
         if (owner != myId) {
             throw ApiException("این پشتیبان مربوط به حساب دیگری است و روی این حساب بازیابی نمی‌شود.")
         }
+        // F6: a restore always drops local ratchet sessions and pending
+        // handshakes, so the restored device state starts fresh signed
+        // key exchanges instead of reviving a second live copy of a
+        // session. Restored history below stays readable (its plaintext
+        // is part of the backup payload).
+        secure.removeWithPrefixes(listOf("session:", "kxaccept:"))
         var imported = 0
         var identityTouched = false
         for (line in lines) {
@@ -575,8 +597,11 @@ class ChatRepository(
                     if (parts.size == 3) {
                         val key = unb64Field(parts[1])
                         val value = unb64Field(parts[2])
+                        // Only identity/pins/TTL (+ sync watermark) may be
+                        // restored; session:/kxaccept: lines in old
+                        // backups are deliberately ignored (audit F6).
                         if (key != null && value != null &&
-                            BACKUP_SECURE_PREFIXES.any { key.startsWith(it) }
+                            (BackupRules.restoresSecureKey(key) || key.startsWith("editwm:"))
                         ) {
                             secure.putSecretCommit(key, value)
                             if (key.startsWith("identity_")) identityTouched = true
@@ -614,7 +639,13 @@ class ChatRepository(
                 }
             }
         }
-        if (identityTouched) identity.reloadIdentity()
+        if (identityTouched) {
+            try {
+                identity.reloadIdentity()
+            } catch (e: Exception) {
+                throw ApiException("کلید هویتِ داخل پشتیبان خوانده نشد؛ پشتیبان ممکن است خراب باشد.")
+            }
+        }
         synchronized(sessionLock) { sessionCache.clear() }
         return imported
     }
@@ -674,6 +705,7 @@ class ChatRepository(
         // so a late commit can carry an older timestamp than our watermark.
         // processRow is idempotent (dedupe by server id), so re-fetching a
         // small overlap window is safe.
+        var rpc: SupabaseApi.ConversationSync? = null
         val watermark = db.lastServerCreatedAt(conv.id)?.let { SyncGuards.rewindWatermark(it) }
         var incomingNew = 0
         if (watermark == null) {
@@ -694,17 +726,49 @@ class ChatRepository(
                 rounds++
             }
         } else {
-            var wm: String = watermark
-            var lastRowId: String? = null
-            while (true) {
-                val page = api.fetchMessagesAfter(conv.id, wm)
-                for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
-                if (page.size < 200) break
-                // Guard against >200 rows sharing one timestamp: gte-cursor
-                // would refetch the same page forever.
-                if (page.last().id == lastRowId) break
-                lastRowId = page.last().id
-                wm = page.last().createdAt
+            // F9: one-request sync via sync_conversation(); the legacy
+            // multi-request path runs only when the RPC is absent (older
+            // backend), never as a silent mask for real RPC errors.
+            if (!syncRpcUnavailable) {
+                try {
+                    var after: String = watermark
+                    var lastRowId: String? = null
+                    val editWm = SyncGuards.rewindWatermark(
+                        secure.getSecret("editwm:${conv.id}") ?: "1970-01-01T00:00:00Z",
+                    )
+                    while (true) {
+                        val data = api.syncConversation(conv.id, after, editWm)
+                        if (rpc == null) rpc = data
+                        for (row in data.messages) {
+                            if (processRow(conv, row, session, peerPublicKey)) incomingNew++
+                        }
+                        if (data.messages.size < 200) break
+                        if (data.messages.last().id == lastRowId) break
+                        lastRowId = data.messages.last().id
+                        after = data.messages.last().createdAt
+                    }
+                } catch (e: ApiException) {
+                    if (e.code == "PGRST202" || e.status == 404) {
+                        syncRpcUnavailable = true
+                        rpc = null
+                    } else {
+                        throw e
+                    }
+                }
+            }
+            if (rpc == null) {
+                var wm: String = watermark
+                var lastRowId: String? = null
+                while (true) {
+                    val page = api.fetchMessagesAfter(conv.id, wm)
+                    for (row in page) if (processRow(conv, row, session, peerPublicKey)) incomingNew++
+                    if (page.size < 200) break
+                    // Guard against >200 rows sharing one timestamp:
+                    // gte-cursor would refetch the same page forever.
+                    if (page.last().id == lastRowId) break
+                    lastRowId = page.last().id
+                    wm = page.last().createdAt
+                }
             }
         }
 
@@ -712,25 +776,34 @@ class ChatRepository(
         // (session arrived later, process died mid-sync in an older version…).
         if (session != null) healPlaceholders(conv, session)
 
-        reconcileEditsAndDeletes(conv, session)
+        reconcileEditsAndDeletes(conv, session, rpc?.changes)
         syncPlainReactions(conv.id)
 
         var peerTyping = false
         var peerLastSeenAt: String? = peer?.lastSeenAt
         var peerLastSeenPublic: Boolean = peer?.lastSeenPublic ?: true
         if (!isGroup && peer != null) {
-            try {
-                val until = api.fetchTypingUntil(conv.id, peer.id)?.let { UiUtil.parseInstant(it) }
+            if (rpc != null) {
+                val until = rpc.typingUntil?.let { UiUtil.parseInstant(it) }
                 peerTyping = until != null && until.isAfter(Instant.now())
-            } catch (e: Exception) {
-                // Typing is best-effort decoration.
-            }
-            try {
-                val presence = api.fetchPresence(peer.id)
-                peerLastSeenAt = presence.lastSeenAt
-                peerLastSeenPublic = presence.public
-            } catch (e: Exception) {
-                // Keep the (possibly stale) profile-copy values.
+                rpc.presence[peer.id]?.let { presence ->
+                    peerLastSeenAt = presence.lastSeenAt
+                    peerLastSeenPublic = presence.public
+                }
+            } else {
+                try {
+                    val until = api.fetchTypingUntil(conv.id, peer.id)?.let { UiUtil.parseInstant(it) }
+                    peerTyping = until != null && until.isAfter(Instant.now())
+                } catch (e: Exception) {
+                    // Typing is best-effort decoration.
+                }
+                try {
+                    val presence = api.fetchPresence(peer.id)
+                    peerLastSeenAt = presence.lastSeenAt
+                    peerLastSeenPublic = presence.public
+                } catch (e: Exception) {
+                    // Keep the (possibly stale) profile-copy values.
+                }
             }
         }
 
@@ -745,7 +818,7 @@ class ChatRepository(
         // Fresh read watermarks every sync: the Conversation object handed
         // in by the UI goes stale, which previously froze read receipts
         // (and timed-message countdowns) until the chat was reopened.
-        val memberReads = try {
+        val memberReads = rpc?.reads ?: try {
             api.fetchMemberReadStates(conv.id)
         } catch (e: Exception) {
             emptyMap()
@@ -800,10 +873,14 @@ class ChatRepository(
         }
     }
 
-    private fun reconcileEditsAndDeletes(conv: Conversation, session: SecretSession?) {
+    private fun reconcileEditsAndDeletes(
+        conv: Conversation,
+        session: SecretSession?,
+        prefetched: List<MessageRow>? = null,
+    ) {
         val key = "editwm:${conv.id}"
         val wm = secure.getSecret(key) ?: "1970-01-01T00:00:00Z"
-        val rows = try {
+        val rows = prefetched ?: try {
             api.fetchEditedOrDeletedSince(conv.id, SyncGuards.rewindWatermark(wm))
         } catch (e: Exception) {
             return

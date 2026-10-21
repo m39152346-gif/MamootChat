@@ -40,6 +40,14 @@ class SecureStore(context: Context) {
     }
 
     /**
+     * True when an entry exists on disk even if it no longer decrypts
+     * (e.g. the Keystore master key was invalidated by a lock-screen
+     * reset). IdentityManager uses this to distinguish "fresh install"
+     * from "identity present but unreadable" (audit F5).
+     */
+    fun hasRawSecret(key: String): Boolean = prefs.contains(key)
+
+    /**
      * Synchronous write for crash-critical values (session ratchet state,
      * identity keys): `apply()` may lose the newest value if the process is
      * killed before the async disk flush, which could roll the ratchet back.

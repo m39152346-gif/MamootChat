@@ -13,31 +13,59 @@ import java.security.PublicKey
  * (TOFU): a later change is treated as a security event, not silently
  * accepted.
  */
+/**
+ * Stored identity key material exists but cannot be read (corrupted, or
+ * the Keystore master key was invalidated). The app must show the
+ * recovery screen instead of silently generating a new identity and
+ * auto-publishing it over the profile (audit F5).
+ */
+class IdentityRecoveryRequiredException :
+    IllegalStateException("identity_recovery_required")
+
 class IdentityManager(private val secure: SecureStore) {
     private var cached: KeyPair? = null
 
     @Synchronized
     fun ensureIdentity(): KeyPair {
         cached?.let { return it }
-        val privB64 = secure.getSecret(KEY_PRIV)
-        val pubB64 = secure.getSecret(KEY_PUB)
-        if (privB64 != null && pubB64 != null) {
-            try {
-                val pair = KeyPair(
-                    Crypto.publicKeyFromB64(pubB64),
-                    Crypto.privateKeyFromBytes(Crypto.unb64(privB64)),
-                )
-                cached = pair
-                return pair
-            } catch (e: Exception) {
-                // Corrupt/unreadable key material: fall through and regenerate.
-            }
+        loadStored()?.let {
+            cached = it
+            return it
+        }
+        if (secure.hasRawSecret(KEY_PRIV) || secure.hasRawSecret(KEY_PUB)) {
+            // Never silently regenerate over unreadable material: doing so
+            // republishes a new identity, stranding every secret chat and
+            // making the user look like a different (possibly attacker)
+            // device to every contact.
+            throw IdentityRecoveryRequiredException()
         }
         val pair = Crypto.generateEcKeyPair()
-        secure.putSecretCommit(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
-        secure.putSecretCommit(KEY_PUB, Crypto.publicKeyToB64(pair.public))
+        store(pair)
         cached = pair
         return pair
+    }
+
+    fun needsRecovery(): Boolean = synchronized(this) {
+        cached == null && loadStored() == null &&
+            (secure.hasRawSecret(KEY_PRIV) || secure.hasRawSecret(KEY_PUB))
+    }
+
+    private fun loadStored(): KeyPair? {
+        val privB64 = secure.getSecret(KEY_PRIV) ?: return null
+        val pubB64 = secure.getSecret(KEY_PUB) ?: return null
+        return try {
+            KeyPair(
+                Crypto.publicKeyFromB64(pubB64),
+                Crypto.privateKeyFromBytes(Crypto.unb64(privB64)),
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun store(pair: KeyPair) {
+        secure.putSecretCommit(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
+        secure.putSecretCommit(KEY_PUB, Crypto.publicKeyToB64(pair.public))
     }
 
     fun publicKeyB64(): String = Crypto.publicKeyToB64(ensureIdentity().public)
@@ -62,8 +90,7 @@ class IdentityManager(private val secure: SecureStore) {
     @Synchronized
     fun rotateIdentity(): KeyPair {
         val pair = Crypto.generateEcKeyPair()
-        secure.putSecretCommit(KEY_PRIV, Crypto.b64(Crypto.privateKeyToBytes(pair.private)))
-        secure.putSecretCommit(KEY_PUB, Crypto.publicKeyToB64(pair.public))
+        store(pair)
         cached = pair
         return pair
     }

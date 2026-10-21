@@ -23,8 +23,6 @@ class LockActivity : Activity() {
     private lateinit var etPin: EditText
     private lateinit var tvError: TextView
     private lateinit var btnUnlock: Button
-    private var failedAttempts = 0
-    private var lockedUntilMs = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +42,12 @@ class LockActivity : Activity() {
             }
         }
         findViewById<Button>(R.id.btnForgotPin).setOnClickListener { confirmWipe() }
+        // The lockout survives process death (persisted in SecureStore),
+        // so stealing the phone and force-stopping the app gains nothing.
+        val until = app.appLock.lockedUntilMs()
+        if (until > System.currentTimeMillis()) {
+            showError("تلاش‌های ناموفق زیاد بود؛ ${(until - System.currentTimeMillis()) / 1000 + 1} ثانیه صبر کنید.")
+        }
 
         val btnBiometric = findViewById<Button>(R.id.btnBiometric)
         if (canUseBiometrics()) {
@@ -62,31 +66,33 @@ class LockActivity : Activity() {
 
     private fun tryUnlock() {
         val now = System.currentTimeMillis()
-        if (now < lockedUntilMs) {
-            showError("تلاش‌های ناموفق زیاد بود؛ ${(lockedUntilMs - now) / 1000 + 1} ثانیه صبر کنید.")
+        val until = app.appLock.lockedUntilMs()
+        if (now < until) {
+            showError("تلاش‌های ناموفق زیاد بود؛ ${(until - now) / 1000 + 1} ثانیه صبر کنید.")
             return
         }
         val pin = etPin.text.toString()
         if (pin.length < 4) {
-            showError("رمز قفل دست‌کم ۴ رقم است.")
+            showError("رمز قفل دست‌کم ۴ نویسه است.")
             return
         }
         btnUnlock.isEnabled = false
         Threads.runIo {
             val ok = app.appLock.verify(pin)
+            if (ok && app.appLock.isLegacyHash()) {
+                // Transparent upgrade of the <= 0.4.0 hash format.
+                app.appLock.setPin(pin)
+            }
+            val newUntil = if (ok) 0L else app.appLock.lockedUntilMs()
             Threads.runUi {
                 btnUnlock.isEnabled = true
                 if (ok) {
                     unlockAndFinish()
+                } else if (newUntil > System.currentTimeMillis()) {
+                    showError("رمز اشتباه است. ${(newUntil - System.currentTimeMillis()) / 1000 + 1} ثانیه صبر کنید.")
+                    etPin.text.clear()
                 } else {
-                    failedAttempts++
-                    if (failedAttempts >= 5) {
-                        lockedUntilMs = System.currentTimeMillis() + 30_000
-                        failedAttempts = 0
-                        showError("رمز اشتباه است. ۳۰ ثانیه صبر کنید.")
-                    } else {
-                        showError("رمز اشتباه است.")
-                    }
+                    showError("رمز اشتباه است.")
                     etPin.text.clear()
                 }
             }

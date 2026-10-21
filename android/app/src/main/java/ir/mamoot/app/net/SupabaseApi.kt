@@ -31,6 +31,7 @@ data class MemberInfo(
     val e2eIdentityKey: String?,
     val lastSeenAt: String? = null,
     val lastSeenPublic: Boolean = true,
+    val role: String = "member",
 )
 
 data class LastMessageInfo(
@@ -208,7 +209,9 @@ class SupabaseApi(private val secure: SecureStore) {
 
     // ---------------------------------------------------------- profiles
     fun fetchProfile(userId: String): Profile? {
-        val path = "/rest/v1/profiles?select=id,username,display_name,e2e_identity_key,last_seen_at,last_seen_public&id=eq.${enc(userId)}"
+        // last_seen_at is no longer client-readable (column grant removed
+        // in migration 6, audit F2); presence goes through get_presence().
+        val path = "/rest/v1/profiles?select=$PROFILE_COLUMNS&id=eq.${enc(userId)}"
         val arr = JSONArray(authed("GET", path, null, null))
         if (arr.length() == 0) return null
         return parseProfile(arr.getJSONObject(0))
@@ -219,7 +222,7 @@ class SupabaseApi(private val secure: SecureStore) {
             .put("id", userId)
             .put("username", username.trim().lowercase())
             .put("display_name", displayName.trim())
-        val arr = JSONArray(authed("POST", "/rest/v1/profiles", body, "return=representation"))
+        val arr = JSONArray(authed("POST", "/rest/v1/profiles?select=$PROFILE_COLUMNS", body, "return=representation"))
         return parseProfile(arr.getJSONObject(0))
     }
 
@@ -227,7 +230,7 @@ class SupabaseApi(private val secure: SecureStore) {
         val body = JSONObject()
             .put("username", username.trim().lowercase())
             .put("display_name", displayName.trim())
-        val arr = JSONArray(authed("PATCH", "/rest/v1/profiles?id=eq.${enc(userId)}", body, "return=representation"))
+        val arr = JSONArray(authed("PATCH", "/rest/v1/profiles?id=eq.${enc(userId)}&select=$PROFILE_COLUMNS", body, "return=representation"))
         return parseProfile(arr.getJSONObject(0))
     }
 
@@ -256,8 +259,12 @@ class SupabaseApi(private val secure: SecureStore) {
     }
 
     fun fetchPresence(userId: String): PresenceInfo {
-        val profile = fetchProfile(userId)
-        return PresenceInfo(profile?.lastSeenAt, profile?.lastSeenPublic ?: true)
+        val body = JSONObject().put("p_user", userId)
+        val arr = JSONArray(authed("POST", "/rest/v1/rpc/get_presence", body, null))
+        if (arr.length() == 0) return PresenceInfo(null, true)
+        val json = arr.getJSONObject(0)
+        val public = json.optBoolean("last_seen_public", true)
+        return PresenceInfo(if (public) json.optStringOrNull("last_seen_at") else null, public)
     }
 
     fun setLastSeenPublic(public: Boolean) {
@@ -274,7 +281,10 @@ class SupabaseApi(private val secure: SecureStore) {
     }
 
     fun listConversations(): List<Conversation> {
-        val arr = JSONArray(authed("POST", "/rest/v1/rpc/list_conversations", JSONObject(), null))
+        // Slim mode (migration 6): identity keys are fetched per-chat on
+        // open instead of being re-downloaded for every member every poll.
+        val body = JSONObject().put("p_include_keys", false)
+        val arr = JSONArray(authed("POST", "/rest/v1/rpc/list_conversations", body, null))
         return List(arr.length()) { i ->
             val json = arr.getJSONObject(i)
             val membersArr = json.optJSONArray("members") ?: JSONArray()
@@ -288,6 +298,7 @@ class SupabaseApi(private val secure: SecureStore) {
                     e2eIdentityKey = m.optStringOrNull("e2e_identity_key"),
                     lastSeenAt = m.optStringOrNull("last_seen_at"),
                     lastSeenPublic = m.optBoolean("last_seen_public", true),
+                    role = m.optString("role", "member"),
                 )
             }
             val last = json.optJSONObjectOrNull("last_message")?.let { lm ->
@@ -475,6 +486,80 @@ class SupabaseApi(private val secure: SecureStore) {
         forwarded = json.optBoolean("forwarded", false),
     )
 
+    data class ConversationSync(
+        val messages: List<MessageRow>,
+        val changes: List<MessageRow>,
+        val reads: Map<String, String>,
+        val typingUntil: String?,
+        val presence: Map<String, PresenceInfo>,
+    )
+
+    /**
+     * One-request conversation sync (migration 6, audit F9): new messages,
+     * edits/deletes, member read states, peer typing and gated presence.
+     * Throws ApiException with code PGRST202 on backends without the RPC.
+     */
+    fun syncConversation(conversationId: String, afterIso: String, editAfterIso: String): ConversationSync {
+        val body = JSONObject()
+            .put("p_conv", conversationId)
+            .put("p_after", afterIso)
+            .put("p_edit_after", editAfterIso)
+        val json = JSONObject(authed("POST", "/rest/v1/rpc/sync_conversation", body, null))
+        fun rows(key: String): List<MessageRow> {
+            val arr = json.optJSONArray(key) ?: return emptyList()
+            return List(arr.length()) { parseMessage(arr.getJSONObject(it)) }
+        }
+        val reads = LinkedHashMap<String, String>()
+        json.optJSONObject("reads")?.let { obj ->
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                obj.optStringOrNull(k)?.let { reads[k] = it }
+            }
+        }
+        val presence = LinkedHashMap<String, PresenceInfo>()
+        json.optJSONObject("presence")?.let { obj ->
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val entry = obj.optJSONObject(k) ?: continue
+                val public = entry.optBoolean("last_seen_public", true)
+                presence[k] = PresenceInfo(
+                    if (public) entry.optStringOrNull("last_seen_at") else null, public,
+                )
+            }
+        }
+        return ConversationSync(
+            messages = rows("messages"),
+            changes = rows("changes"),
+            reads = reads,
+            typingUntil = json.optStringOrNull("typing_until"),
+            presence = presence,
+        )
+    }
+
+    data class UnreadSummary(
+        val total: Long,
+        val newestAt: String?,
+        val topConversationId: String?,
+    )
+
+    fun unreadSummary(): UnreadSummary {
+        val arr = JSONArray(authed("POST", "/rest/v1/rpc/unread_summary", JSONObject(), null))
+        if (arr.length() == 0) return UnreadSummary(0, null, null)
+        val json = arr.getJSONObject(0)
+        return UnreadSummary(
+            total = json.optLong("total_unread", 0),
+            newestAt = json.optStringOrNull("newest_unread_at"),
+            topConversationId = json.optStringOrNull("top_conversation"),
+        )
+    }
+
+    fun removeGroupMember(conversationId: String, userId: String) {
+        val body = JSONObject().put("p_conversation", conversationId).put("p_user", userId)
+        authed("POST", "/rest/v1/rpc/remove_group_member", body, null)
+    }
+
     // ---------------------------------------------------------- typing / reactions / reports
     /** Typing state lives ~6 seconds; clients refresh it while composing. */
     fun setTyping(conversationId: String, typing: Boolean) {
@@ -501,12 +586,16 @@ class SupabaseApi(private val secure: SecureStore) {
 
     fun fetchReactions(messageIds: List<String>): List<ReactionRow> {
         if (messageIds.isEmpty()) return emptyList()
-        val ids = messageIds.joinToString(",")
-        val path = "/rest/v1/message_reactions?select=message_id,user_id,reaction&message_id=in.($ids)"
-        val arr = JSONArray(authed("GET", path, null, null))
-        return List(arr.length()) { i ->
-            val json = arr.getJSONObject(i)
-            ReactionRow(json.getString("message_id"), json.getString("user_id"), json.getString("reaction"))
+        // Chunked: an unbounded in.(...) list can exceed URL length limits
+        // on a full 100-message page (audit also-review).
+        return messageIds.chunked(40).flatMap { chunk ->
+            val ids = chunk.joinToString(",")
+            val path = "/rest/v1/message_reactions?select=message_id,user_id,reaction&message_id=in.($ids)"
+            val arr = JSONArray(authed("GET", path, null, null))
+            List(arr.length()) { i ->
+                val json = arr.getJSONObject(i)
+                ReactionRow(json.getString("message_id"), json.getString("user_id"), json.getString("reaction"))
+            }
         }
     }
 
@@ -667,6 +756,7 @@ class SupabaseApi(private val secure: SecureStore) {
 
     private companion object {
         const val KEY_SESSION = "session_v1"
+        const val PROFILE_COLUMNS = "id,username,display_name,e2e_identity_key,last_seen_public"
         const val MESSAGE_COLUMNS = "id,client_id,conversation_id,sender_id,body,kind,created_at,edited_at,deleted_at,reply_to_id,forwarded"
     }
 }

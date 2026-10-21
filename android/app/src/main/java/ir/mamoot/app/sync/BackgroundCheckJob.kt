@@ -31,16 +31,39 @@ class BackgroundCheckJob : JobService() {
         }
         Threads.runIo {
             try {
-                val conversations = app.api.listConversations()
-                val total = conversations.sumOf { it.unreadCount }
                 val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                val lastNotified = prefs.getInt(KEY_LAST_UNREAD, 0)
-                if (total > lastNotified && total > 0) {
-                    val target = conversations.filter { it.unreadCount > 0 }
-                        .maxByOrNull { it.unreadCount }?.id
-                    showNotification(target)
+                // F9.3/F10: one ~73-byte summary instead of the full
+                // conversation list, and compare the newest unread
+                // timestamp. A bare count misses read-one-receive-one
+                // (equal count, no notification). Falls back to the list
+                // only on backends without unread_summary().
+                val summary = try {
+                    app.api.unreadSummary()
+                } catch (e: Exception) {
+                    null
                 }
-                prefs.edit().putInt(KEY_LAST_UNREAD, total).apply()
+                if (summary != null) {
+                    val lastNewest = prefs.getString(KEY_LAST_NEWEST, null)
+                    if (summary.total > 0 && summary.newestAt != null &&
+                        summary.newestAt != lastNewest
+                    ) {
+                        showNotification(summary.topConversationId)
+                    }
+                    prefs.edit()
+                        .putString(KEY_LAST_NEWEST, summary.newestAt)
+                        .putInt(KEY_LAST_UNREAD, summary.total.toInt())
+                        .apply()
+                } else {
+                    val conversations = app.api.listConversations()
+                    val total = conversations.sumOf { it.unreadCount }
+                    val lastNotified = prefs.getInt(KEY_LAST_UNREAD, 0)
+                    if (total > lastNotified && total > 0) {
+                        val target = conversations.filter { it.unreadCount > 0 }
+                            .maxByOrNull { it.unreadCount }?.id
+                        showNotification(target)
+                    }
+                    prefs.edit().putInt(KEY_LAST_UNREAD, total).apply()
+                }
             } catch (e: Exception) {
                 // Offline etc.: try again next period.
             } finally {
@@ -77,6 +100,7 @@ class BackgroundCheckJob : JobService() {
         private const val JOB_ID = 4201
         private const val PREFS = "mamoot_bg"
         private const val KEY_LAST_UNREAD = "last_unread"
+        private const val KEY_LAST_NEWEST = "last_newest_unread"
 
         fun schedule(context: Context) {
             val scheduler = context.getSystemService(JobScheduler::class.java) ?: return

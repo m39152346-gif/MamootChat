@@ -44,6 +44,19 @@ class MainActivity : Activity() {
             return
         }
         setContentView(R.layout.activity_main)
+        // Audit F5: if the stored identity key can no longer be read, stop
+        // at the recovery screen. ensureIdentityUploaded below can never
+        // auto-publish a fresh identity in that state (it throws instead).
+        ir.mamoot.app.Threads.runIo {
+            if (app.repo.identityNeedsRecovery()) {
+                ir.mamoot.app.Threads.runUi {
+                    if (!isFinishing && !isDestroyed) {
+                        startActivity(Intent(this, RecoveryActivity::class.java))
+                        finish()
+                    }
+                }
+            }
+        }
         app.scheduleBackgroundChecks()
         maybeRequestNotificationPermission()
 

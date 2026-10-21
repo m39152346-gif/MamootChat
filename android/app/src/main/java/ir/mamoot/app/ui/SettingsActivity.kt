@@ -195,9 +195,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun promptCurrentPin(onOk: () -> Unit) {
-        val input = field("رمز قفل فعلی", password = true).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
+        val input = field("رمز قفل فعلی", password = true)
         AlertDialog.Builder(this)
             .setTitle("تأیید رمز قفل")
             .setView(column(input))
@@ -214,20 +212,17 @@ class SettingsActivity : Activity() {
     }
 
     private fun promptNewPin(title: String, onOk: (String) -> Unit) {
-        val first = field("رمز تازه (۴ تا ۱۲ رقم)", password = true).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
-        val second = field("تکرار رمز تازه", password = true).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
+        val first = field("رمز تازه (حداقل ۶ نویسه؛ حروف و عدد)", password = true)
+        val second = field("تکرار رمز تازه", password = true)
         AlertDialog.Builder(this)
             .setTitle(title)
+            .setMessage("قفل برنامه جلوی باز شدن برنامه توسط دیگران را می‌گیرد؛ رمزنگاری داده‌های دستگاه بر عهدهٔ قفل صفحه و حافظهٔ امن گوشی است. رمز طولانی‌تر (ترکیب حروف و عدد) امن‌تر است.")
             .setView(column(first, second))
             .setNegativeButton("لغو", null)
             .setPositiveButton("ذخیره") { _, _ ->
                 val pin = first.text.toString().trim()
                 when {
-                    pin.length !in 4..12 || !pin.all { it.isDigit() } -> toast("رمز قفل باید ۴ تا ۱۲ رقم باشد.")
+                    pin.length < 6 -> toast("رمز قفل باید حداقل ۶ نویسه باشد.")
                     pin != second.text.toString().trim() -> toast("تکرار رمز درست نیست.")
                     else -> onOk(pin)
                 }
@@ -372,25 +367,49 @@ class SettingsActivity : Activity() {
     }
 
     private fun promptCreateBackup() {
-        val pass1 = field("گذرواژه پشتیبان (حداقل ۸ نویسه)", password = true)
+        val pass1 = field("گذرواژه پشتیبان (حداقل ۱۲ نویسه)", password = true)
         val pass2 = field("تکرار گذرواژه پشتیبان", password = true)
+        val strength = TextView(this).apply {
+            setTextColor(getColor(R.color.text2))
+            textSize = 13f
+        }
+        val watcher = object : android.text.TextWatcher {
+            override fun afterTextChanged(editable: android.text.Editable?) {
+                val issues = ir.mamoot.app.crypto.BackupRules.passphraseIssues(pass1.text.toString())
+                strength.text = if (pass1.text.isEmpty()) "" else if (issues.isEmpty()) {
+                    "گذرواژه مناسب است ✓"
+                } else {
+                    "گذرواژه باید: " + issues.joinToString("؛ ")
+                }
+            }
+            override fun beforeTextChanged(s2: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s2: CharSequence?, a: Int, b: Int, c: Int) {}
+        }
+        pass1.addTextChangedListener(watcher)
         AlertDialog.Builder(this)
             .setTitle("پشتیبان رمزنگاری‌شده 📦")
-            .setMessage("کلید هویت، نشست‌های امن و تاریخچه این دستگاه با گذرواژه شما رمز می‌شود (PBKDF2 + AES-256-GCM) و در یک فایل ذخیره می‌شود. بدون گذرواژه، بازیابی برای هیچ‌کس — حتی خودتان — ممکن نیست.")
-            .setView(column(pass1, pass2))
+            .setMessage("کلید هویت و تاریخچه خوانای این دستگاه با گذرواژه شما رمز می‌شود (PBKDF2 با ۶۰۰ هزار تکرار + AES-256-GCM) و در یک فایل ذخیره می‌شود. هنگام بازیابی روی گوشی تازه، نشست‌های چت امن از نو ساخته می‌شوند. بدون گذرواژه، بازیابی برای هیچ‌کس — حتی خودتان — ممکن نیست.")
+            .setView(column(pass1, pass2, strength))
             .setNegativeButton("لغو", null)
             .setPositiveButton("ساخت فایل پشتیبان") { _, _ ->
                 val a = pass1.text.toString()
                 val b = pass2.text.toString()
-                if (a.length < 8) {
-                    toast("گذرواژه باید حداقل ۸ نویسه باشد.")
+                val issues = ir.mamoot.app.crypto.BackupRules.passphraseIssues(a)
+                if (issues.isNotEmpty()) {
+                    toast("گذرواژه باید: " + issues.joinToString("؛ "))
                     return@setPositiveButton
                 }
                 if (a != b) {
                     toast("دو گذرواژه یکی نیستند.")
                     return@setPositiveButton
                 }
+                val progress = android.app.ProgressDialog(this).apply {
+                    setMessage("در حال رمزنگاری پشتیبان… (ممکن است چند ثانیه طول بکشد)")
+                    setCancelable(false)
+                    show()
+                }
                 app.repo.createEncryptedBackup(a) { result ->
+                    progress.dismiss()
                     result.onSuccess { blob ->
                         launchCreateDocument("mamoot-backup.txt", blob)
                     }.onFailure { e ->
@@ -409,9 +428,15 @@ class SettingsActivity : Activity() {
             .setView(column(pass))
             .setNegativeButton("لغو", null)
             .setPositiveButton("بازیابی") { _, _ ->
+                val progress = android.app.ProgressDialog(this).apply {
+                    setMessage("در حال رمزگشایی پشتیبان… (ممکن است چند ثانیه طول بکشد)")
+                    setCancelable(false)
+                    show()
+                }
                 app.repo.restoreEncryptedBackup(blob, pass.text.toString()) { result ->
+                    progress.dismiss()
                     result.onSuccess { count ->
-                        toast("بازیابی انجام شد؛ ${UiUtil.faNum(count)} پیام تازه وارد شد. چت‌ها را دوباره باز کنید.")
+                        toast("بازیابی انجام شد؛ ${UiUtil.faNum(count)} پیام تازه وارد شد. نشست‌های امن هنگام باز کردن دوباره هر چت از نو ساخته می‌شوند.")
                     }.onFailure { e ->
                         toast(e.message ?: "بازیابی ناموفق بود")
                     }

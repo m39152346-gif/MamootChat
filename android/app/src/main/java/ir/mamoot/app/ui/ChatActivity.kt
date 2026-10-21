@@ -697,16 +697,57 @@ class ChatActivity : Activity() {
     }
 
     private fun showGroupInfo() {
+        val me = app.api.myUserId
+        val iAmOwner = conv.members.firstOrNull { it.id == me }?.role == "owner"
         val names = conv.members.joinToString("\n") { m ->
-            "• ${m.displayName} (@${m.username})" + if (m.id == app.api.myUserId) " — شما" else ""
+            "• ${m.displayName} (@${m.username})" + if (m.id == me) " — شما" else ""
         }
         val text = "گروه‌ها مثل تلگرام رمزنگاری سرتاسری ندارند؛ پیام گروه با TLS و کنترل دسترسی محافظت می‌شود اما سرور می‌تواند آن را بخواند.\n\nاعضا (${UiUtil.faNum(conv.members.size)}):\n$names"
-        AlertDialog.Builder(this)
+        val builder = AlertDialog.Builder(this)
             .setTitle(tvChatTitle.text.toString())
             .setMessage(text)
             .setPositiveButton("بستن", null)
-            .setNeutralButton("افزودن عضو") { _, _ -> promptAddMember() }
             .setNegativeButton("ترک گروه") { _, _ -> confirmLeaveGroup() }
+        // Server-side only the owner may add/remove members (migration 6).
+        if (iAmOwner) {
+            builder.setNeutralButton("افزودن / حذف عضو") { _, _ -> promptManageMembers() }
+        }
+        builder.show()
+    }
+
+    private fun promptManageMembers() {
+        val me = app.api.myUserId
+        val removable = conv.members.filter { it.id != me && it.role != "owner" }
+        val labels = arrayOf("➕ افزودن عضو جدید") +
+            removable.map { "❌ حذف ${it.displayName} (@${it.username})" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("مدیریت اعضا")
+            .setItems(labels) { _, which ->
+                if (which == 0) promptAddMember() else confirmRemoveMember(removable[which - 1])
+            }
+            .setNegativeButton("انصراف", null)
+            .show()
+    }
+
+    private fun confirmRemoveMember(member: ir.mamoot.app.net.MemberInfo) {
+        AlertDialog.Builder(this)
+            .setTitle("حذف از گروه؟")
+            .setMessage("«${member.displayName}» از گروه حذف می‌شود و دیگر به پیام‌ها دسترسی ندارد.")
+            .setPositiveButton("حذف") { _, _ ->
+                io.execute {
+                    val result = runCatching { app.api.removeGroupMember(conv.id, member.id) }
+                    ui.post {
+                        if (isFinishing || isDestroyed) return@post
+                        result.onSuccess {
+                            toast("عضو حذف شد")
+                            enrichConversation(silent = true)
+                        }.onFailure {
+                            toast((it as? ir.mamoot.app.net.ApiException)?.userMessage ?: "خطا در حذف عضو")
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("انصراف", null)
             .show()
     }
 

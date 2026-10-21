@@ -60,25 +60,34 @@ object Crypto {
     fun pbkdf2Sha256(password: ByteArray, salt: ByteArray, iterations: Int, dkLen: Int): ByteArray {
         require(iterations > 0 && dkLen > 0) { "bad pbkdf2 params" }
         require(password.isNotEmpty()) { "empty password" }
-        var out = ByteArray(0)
+        // Single reusable Mac (doFinal resets it): at 600k iterations the
+        // per-call Mac/KeySpec construction dominated wall-clock time.
+        // Output is byte-identical to the previous implementation;
+        // the RFC 7914 test vectors in CryptoTest pin this down.
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(password, "HmacSHA256"))
+        val out = ByteArray(dkLen)
+        val blockSalt = ByteArray(salt.size + 4)
+        salt.copyInto(blockSalt)
+        var produced = 0
         var blockIndex = 1
-        while (out.size < dkLen) {
-            val blockSalt = salt + byteArrayOf(
-                (blockIndex ushr 24).toByte(),
-                (blockIndex ushr 16).toByte(),
-                (blockIndex ushr 8).toByte(),
-                blockIndex.toByte(),
-            )
-            var u = hmacSha256(password, blockSalt)
+        while (produced < dkLen) {
+            blockSalt[salt.size] = (blockIndex ushr 24).toByte()
+            blockSalt[salt.size + 1] = (blockIndex ushr 16).toByte()
+            blockSalt[salt.size + 2] = (blockIndex ushr 8).toByte()
+            blockSalt[salt.size + 3] = blockIndex.toByte()
+            var u = mac.doFinal(blockSalt)
             val t = u.copyOf()
             repeat(iterations - 1) {
-                u = hmacSha256(password, u)
+                u = mac.doFinal(u)
                 for (i in t.indices) t[i] = (t[i].toInt() xor u[i].toInt()).toByte()
             }
-            out += t
+            val n = minOf(t.size, dkLen - produced)
+            t.copyInto(out, produced, 0, n)
+            produced += n
             blockIndex++
         }
-        return out.copyOf(dkLen)
+        return out
     }
 
     fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
