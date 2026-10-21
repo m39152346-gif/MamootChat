@@ -342,7 +342,7 @@ class ChatRepository(
             } else {
                 if (emoji == null) api.deleteReaction(serverId) else api.upsertReaction(serverId, emoji)
             }
-            applyReactionLocal(serverId, myId, emoji ?: "")
+            applyReactionLocal(conv.id, serverId, myId, emoji ?: "")
             db.listVisibleLatest(conv.id, PAGE_SIZE).map(::toUi)
         }
     }
@@ -367,7 +367,7 @@ class ChatRepository(
                 if (!queueHiddenEnvelope(conv.id, envelope, UUID.randomUUID().toString())) {
                     throw ApiException("ارسال ویرایش ناموفق بود؛ اتصال را بررسی کنید.")
                 }
-                db.applyReviseByServerId(serverId, newText)
+                db.applyReviseByServerId(serverId, newText, myId, conv.id)
             } else {
                 if (newText.length > MAX_PLAIN_CHARS) throw ApiException("پیام بیش از حد طولانی است.")
                 api.updateMessageBody(serverId, newText)
@@ -670,7 +670,11 @@ class ChatRepository(
 
         flushPendingKx(conv.id)
 
-        val watermark = db.lastServerCreatedAt(conv.id)
+        // F8: rewind 30s — created_at defaults to transaction-start now(),
+        // so a late commit can carry an older timestamp than our watermark.
+        // processRow is idempotent (dedupe by server id), so re-fetching a
+        // small overlap window is safe.
+        val watermark = db.lastServerCreatedAt(conv.id)?.let { SyncGuards.rewindWatermark(it) }
         var incomingNew = 0
         if (watermark == null) {
             var page = api.fetchLatestMessages(conv.id, PAGE_SIZE)
@@ -800,7 +804,7 @@ class ChatRepository(
         val key = "editwm:${conv.id}"
         val wm = secure.getSecret(key) ?: "1970-01-01T00:00:00Z"
         val rows = try {
-            api.fetchEditedOrDeletedSince(conv.id, wm)
+            api.fetchEditedOrDeletedSince(conv.id, SyncGuards.rewindWatermark(wm))
         } catch (e: Exception) {
             return
         }
@@ -876,13 +880,20 @@ class ChatRepository(
                 )
             }
             plain.reactTargetId != null -> {
-                applyReactionLocal(plain.reactTargetId, local.senderId, plain.reaction ?: "")
+                // F1: control payloads carry peer-chosen target ids; only
+                // react to rows of THIS conversation.
+                applyReactionLocal(conv.id, plain.reactTargetId, local.senderId, plain.reaction ?: "")
                 synchronized(sessionLock) { saveSession(session) }
             }
             plain.reviseTargetId != null -> {
+                // F1: a peer may only revise its OWN messages in THIS
+                // conversation; anything else is silently dropped (the
+                // ratchet step is still consumed and saved below).
                 val target = db.getByServerId(plain.reviseTargetId)
-                if (target != null && !target.deleted) {
-                    db.applyReviseByServerId(plain.reviseTargetId, plain.text)
+                if (target != null && !target.deleted &&
+                    SyncGuards.canRevise(target.senderId, target.conversationId, local.senderId, conv.id)
+                ) {
+                    db.applyReviseByServerId(plain.reviseTargetId, plain.text, local.senderId, conv.id)
                 }
                 synchronized(sessionLock) { saveSession(session) }
             }
@@ -1189,19 +1200,25 @@ class ChatRepository(
             } else {
                 JSONObject().apply { list.forEach { put(it.userId, it.reaction) } }.toString()
             }
-            if (json != row.reactionsJson) db.setReactionsJsonByServerId(row.serverId!!, json)
+            if (json != row.reactionsJson) {
+                db.setReactionsJsonByServerId(row.serverId!!, conversationId, json)
+            }
         }
     }
 
-    private fun applyReactionLocal(targetServerId: String, userId: String, emoji: String) {
+    private fun applyReactionLocal(conversationId: String, targetServerId: String, userId: String, emoji: String) {
         val target = db.getByServerId(targetServerId) ?: return
+        if (!SyncGuards.canReact(target.conversationId, conversationId)) return
         val json = try {
             JSONObject(target.reactionsJson ?: "{}")
         } catch (e: Exception) {
             JSONObject()
         }
         if (emoji.isEmpty()) json.remove(userId) else json.put(userId, emoji)
-        db.setReactionsJsonByServerId(targetServerId, if (json.length() == 0) null else json.toString())
+        db.setReactionsJsonByServerId(
+            targetServerId, conversationId,
+            if (json.length() == 0) null else json.toString(),
+        )
     }
 
     // ------------------------------------------------------------ helpers

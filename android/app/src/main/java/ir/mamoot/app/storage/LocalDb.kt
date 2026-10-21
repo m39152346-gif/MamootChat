@@ -212,12 +212,26 @@ class LocalDb(context: Context, private val secure: SecureStore) :
 
     /** E2EE revise control: replace cached plaintext, keep original envelope. */
     @Synchronized
-    fun applyReviseByServerId(serverId: String, plainText: String) {
+    /**
+     * F1: scoped revise — a revise may only touch a row that the revise's
+     * author originally sent in the same conversation. The WHERE clause is
+     * the last line of defense even if a caller forgets to check.
+     */
+    fun applyReviseByServerId(
+        serverId: String,
+        plainText: String,
+        expectedSenderId: String,
+        conversationId: String,
+    ): Boolean {
         val values = ContentValues().apply {
             put("plain_enc", secure.encrypt(plainText))
             put("edited", 1)
         }
-        writableDatabase.update("messages", values, "server_id = ?", arrayOf(serverId))
+        return writableDatabase.update(
+            "messages", values,
+            "server_id = ? AND sender_id = ? AND conv_id = ?",
+            arrayOf(serverId, expectedSenderId, conversationId),
+        ) > 0
     }
 
     @Synchronized
@@ -227,11 +241,16 @@ class LocalDb(context: Context, private val secure: SecureStore) :
     }
 
     @Synchronized
-    fun setReactionsJsonByServerId(serverId: String, reactionsJson: String?) {
+    /** F1: reaction cache writes are scoped to one conversation. */
+    fun setReactionsJsonByServerId(serverId: String, conversationId: String, reactionsJson: String?) {
         val values = ContentValues().apply {
             if (reactionsJson == null) putNull("reactions_enc") else put("reactions_enc", secure.encrypt(reactionsJson))
         }
-        writableDatabase.update("messages", values, "server_id = ?", arrayOf(serverId))
+        writableDatabase.update(
+            "messages", values,
+            "server_id = ? AND conv_id = ?",
+            arrayOf(serverId, conversationId),
+        )
     }
 
     @Synchronized
@@ -279,7 +298,7 @@ class LocalDb(context: Context, private val secure: SecureStore) :
                 )
             }
             if (existing.reactionsJson == null && m.reactionsJson != null && existing.serverId != null) {
-                setReactionsJsonByServerId(existing.serverId, m.reactionsJson)
+                setReactionsJsonByServerId(existing.serverId, existing.conversationId, m.reactionsJson)
             }
             return false
         }

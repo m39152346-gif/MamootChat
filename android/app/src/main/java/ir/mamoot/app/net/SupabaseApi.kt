@@ -587,7 +587,7 @@ class SupabaseApi(private val secure: SecureStore) {
             setRequestProperty("Authorization", "Bearer $bearer")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Accept-Encoding", "gzip")
-            setRequestProperty("X-Client-Info", "mamoot-android/0.3.2")
+            setRequestProperty("X-Client-Info", "mamoot-android/" + BuildConfig.VERSION_NAME)
             if (prefer != null) setRequestProperty("Prefer", prefer)
             if (body != null) {
                 doOutput = true
@@ -630,21 +630,35 @@ class SupabaseApi(private val secure: SecureStore) {
 
     private fun translateError(raw: String): String {
         val m = raw.lowercase()
+        // Server-raised P0001 tokens arrive as the exact message text; match
+        // them by equality so prose containing e.g. "blocked" can never be
+        // misread as a block error (audit F14).
+        when (m.trim()) {
+            "blocked" -> return "امکان ارسال پیام به این کاربر وجود ندارد (مسدودیت)."
+            "rate_limit_exceeded" -> return "خیلی سریع پیام می‌فرستید؛ کمی صبر کنید."
+            "invalid_title" -> return "نام گروه را وارد کنید (حداکثر ۸۰ نویسه)."
+            "invalid_member_count" -> return "برای گروه دست‌کم یک عضو انتخاب کنید."
+            "group_full" -> return "ظرفیت گروه تکمیل است."
+            "not_a_group", "cannot_leave" -> return "این عملیات برای این گفتگو ممکن نیست."
+            "not_group_owner" -> return "فقط سازنده گروه می‌تواند عضو اضافه یا کم کند."
+            "cannot_remove_owner" -> return "سازنده گروه را نمی‌توان حذف کرد."
+            "user_not_found" -> return "کاربر یافت نشد."
+            "report_rate_limited" -> return "تعداد گزارش‌های شما در این ساعت به سقف رسید؛ بعداً تلاش کنید."
+            "dm_rate_limited" -> return "امروز گفتگوی تازه زیادی ساخته‌اید؛ فردا دوباره تلاش کنید."
+            "group_rate_limited" -> return "امروز گروه زیادی ساخته‌اید؛ فردا دوباره تلاش کنید."
+            "search_rate_limited" -> return "جستجو زیاد شد؛ یک دقیقه صبر کنید."
+            "message_deleted" -> return "این پیام حذف شده است."
+            "empty_message" -> return "پیام خالی است."
+            "cannot_dm_self" -> return "با خودتان نمی‌توانید گفتگو بسازید."
+            "profile_required" -> return "اول پروفایل را کامل کنید."
+        }
         return when {
-            "rate_limit_exceeded" in m -> "خیلی سریع پیام می‌فرستید؛ کمی صبر کنید."
             "invalid login credentials" in m -> "ایمیل یا رمز عبور اشتباه است."
             "already registered" in m || "already been registered" in m -> "این ایمیل قبلاً ثبت شده است؛ وارد شوید."
             "email not confirmed" in m -> "ایمیل شما هنوز تأیید نشده است."
             "duplicate key" in m && "username" in m -> "این نام کاربری قبلاً گرفته شده است."
             "password should be" in m -> "رمز عبور ضعیف است."
-            m.trim() == "blocked" || "blocked" in m -> "امکان ارسال پیام به این کاربر وجود ندارد (مسدودیت)."
-            "invalid_title" in m -> "نام گروه را وارد کنید (حداکثر ۸۰ نویسه)."
-            "invalid_member_count" in m -> "برای گروه دست‌کم یک عضو انتخاب کنید."
-            "group_full" in m -> "ظرفیت گروه تکمیل است."
-            "not_a_group" in m || "cannot_leave" in m -> "این عملیات برای این گفتگو ممکن نیست."
-            "user_not_found" in m -> "کاربر یافت نشد."
-            "report_rate_limited" in m -> "تعداد گزارش‌های شما در این ساعت به سقف رسید؛ بعداً تلاش کنید."
-            "over_request_rate_limit" in m || "too many requests" in m -> "درخواست‌ها زیاد شد؛ چند ثانیه صبر کنید." 
+            "over_request_rate_limit" in m || "too many requests" in m -> "درخواست‌ها زیاد شد؛ چند ثانیه صبر کنید."
             else -> raw.ifEmpty { "خطای شبکه یا سرور" }
         }
     }

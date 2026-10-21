@@ -294,11 +294,10 @@ class SecretSession(
         val ciphertext = Crypto.unb64(msg.ciphertextB64)
         val stage = if (msg.control) 'c' else 'm'
         val aad = aad(stage, peerUserId, msg.fingerprint, msg.seq)
-        val legacyAad = legacyAad(peerUserId, msg.fingerprint, msg.seq)
 
         if (msg.seq < epoch.recvNext) {
             val skippedKey = epoch.skipped[msg.seq] ?: throw DecryptException("replayed sequence")
-            val plain = tryDecrypt(skippedKey, nonce, ciphertext, aad, legacyAad)
+            val plain = tryDecrypt(skippedKey, nonce, ciphertext, aad)
             epoch.skipped.remove(msg.seq)?.fill(0)
             if (promoteAfterSuccess) promoteFuture()
             return plain
@@ -317,7 +316,7 @@ class SecretSession(
         }
         val messageKey = Crypto.hmacSha256(chain, byteArrayOf(1))
         val nextChain = Crypto.hmacSha256(chain, byteArrayOf(2))
-        val plain = tryDecrypt(messageKey, nonce, ciphertext, aad, legacyAad)
+        val plain = tryDecrypt(messageKey, nonce, ciphertext, aad)
 
         // Commit ratchet state only after successful authentication.
         if (promoteAfterSuccess) promoteFuture()
@@ -340,20 +339,16 @@ class SecretSession(
         nonce: ByteArray,
         ciphertext: ByteArray,
         aad: ByteArray,
-        legacyAad: ByteArray,
     ): Plain {
-        // Current envelopes bind the stage ('m'/'c') into the AEAD AAD, so a
-        // relay flipping a message<->control stage is detected. Envelopes
-        // produced before v0.4 used the legacy AAD without the stage; accept
-        // them read-only for in-flight compatibility.
+        // Envelopes bind the stage ('m'/'c') into the AEAD AAD, so a relay
+        // flipping a message<->control stage is detected. The pre-v0.4
+        // legacy-AAD fallback was removed in v0.4.1 (audit F12): unread
+        // envelopes from pre-0.4 builds no longer decrypt; already-read
+        // history lives as local plaintext and is unaffected.
         val raw = try {
             Crypto.aesGcmDecrypt(key, nonce, ciphertext, aad)
         } catch (e: Exception) {
-            try {
-                Crypto.aesGcmDecrypt(key, nonce, ciphertext, legacyAad)
-            } catch (e2: Exception) {
-                throw DecryptException("authentication failed")
-            }
+            throw DecryptException("authentication failed")
         }
         if (raw.isEmpty()) throw DecryptException("bad payload")
         val rest = String(raw, 1, raw.size - 1, Charsets.UTF_8)
@@ -400,9 +395,6 @@ class SecretSession(
     private fun aad(stage: Char, senderUserId: String, fingerprint: String, seq: Long): ByteArray =
         "MAM1|$stage|$conversationId|$senderUserId|$fingerprint|$seq".toByteArray(Charsets.UTF_8)
 
-    /** Pre-v0.4 AAD (no stage). Decrypt-only fallback, never used to encrypt. */
-    private fun legacyAad(senderUserId: String, fingerprint: String, seq: Long): ByteArray =
-        "MAM1|$conversationId|$senderUserId|$fingerprint|$seq".toByteArray(Charsets.UTF_8)
 
     // ---------------------------------------------------------- serialization
     fun serialize(): String {
