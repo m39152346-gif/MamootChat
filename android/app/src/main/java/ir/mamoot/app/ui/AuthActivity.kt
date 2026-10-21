@@ -7,6 +7,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.text.InputType
+import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
 import ir.mamoot.app.MamootApp
@@ -23,6 +25,8 @@ class AuthActivity : Activity() {
     private lateinit var etUsername: EditText
     private lateinit var etEmail: EditText
     private lateinit var etPassword: EditText
+    private lateinit var lblDisplayName: TextView
+    private lateinit var lblUsername: TextView
     private lateinit var tvAuthError: TextView
     private lateinit var btnAuthSubmit: Button
     private lateinit var btnModeLogin: Button
@@ -43,6 +47,8 @@ class AuthActivity : Activity() {
         layoutProfile = findViewById(R.id.layoutProfile)
         etDisplayName = findViewById(R.id.etDisplayName)
         etUsername = findViewById(R.id.etUsername)
+        lblDisplayName = findViewById(R.id.lblDisplayName)
+        lblUsername = findViewById(R.id.lblUsername)
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
         tvAuthError = findViewById(R.id.tvAuthError)
@@ -57,6 +63,16 @@ class AuthActivity : Activity() {
         btnModeLogin.setOnClickListener { setMode(false) }
         btnModeSignup.setOnClickListener { setMode(true) }
         btnAuthSubmit.setOnClickListener { submitAuth() }
+        findViewById<CheckBox>(R.id.cbShowPassword).setOnCheckedChangeListener { _, checked ->
+            val tf = etPassword.typeface
+            etPassword.inputType = if (checked) {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            } else {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            etPassword.typeface = tf
+            etPassword.setSelection(etPassword.text?.length ?: 0)
+        }
         findViewById<Button>(R.id.btnForgot).setOnClickListener { forgotPassword() }
         btnProfileSubmit.setOnClickListener { submitProfile() }
         findViewById<Button>(R.id.btnProfileLogout).setOnClickListener {
@@ -80,6 +96,8 @@ class AuthActivity : Activity() {
         signupMode = signup
         etDisplayName.visibility = if (signup) View.VISIBLE else View.GONE
         etUsername.visibility = if (signup) View.VISIBLE else View.GONE
+        lblDisplayName.visibility = if (signup) View.VISIBLE else View.GONE
+        lblUsername.visibility = if (signup) View.VISIBLE else View.GONE
         btnAuthSubmit.text = if (signup) "ساخت حساب" else "ورود"
         btnModeLogin.alpha = if (signup) 0.55f else 1f
         btnModeSignup.alpha = if (signup) 1f else 0.55f
@@ -105,15 +123,35 @@ class AuthActivity : Activity() {
         val displayName = etDisplayName.text.toString().trim()
         val username = etUsername.text.toString().trim()
         tvAuthError.visibility = View.GONE
+        etEmail.error = null
+        etPassword.error = null
+        etDisplayName.error = null
+        etUsername.error = null
 
-        if (email.isEmpty() || "@" !in email) return showAuthError("ایمیل معتبر وارد کنید.")
-        if (password.isEmpty()) return showAuthError("رمز عبور را وارد کنید.")
+        if (email.isEmpty() || "@" !in email) {
+            etEmail.error = "ایمیل معتبر وارد کنید."
+            etEmail.requestFocus()
+            return showAuthError("ایمیل معتبر وارد کنید.")
+        }
+        if (password.isEmpty()) {
+            etPassword.error = "رمز عبور را وارد کنید."
+            etPassword.requestFocus()
+            return showAuthError("رمز عبور را وارد کنید.")
+        }
         if (signupMode) {
-            if (displayName.isEmpty()) return showAuthError("نام نمایشی را وارد کنید.")
+            if (displayName.isEmpty()) {
+                etDisplayName.error = "نام نمایشی را وارد کنید."
+                etDisplayName.requestFocus()
+                return showAuthError("نام نمایشی را وارد کنید.")
+            }
             if (!USERNAME_RE.matches(username)) {
+                etUsername.error = "نام کاربری باید ۳ تا ۲۴ نویسه و فقط حروف انگلیسی، عدد، نقطه یا _ باشد."
+                etUsername.requestFocus()
                 return showAuthError("نام کاربری باید ۳ تا ۲۴ نویسه و فقط حروف انگلیسی، عدد، نقطه یا _ باشد.")
             }
             if (password.length < 8 || password.none { it.isLetter() } || password.none { it.isDigit() }) {
+                etPassword.error = "رمز عبور باید حداقل ۸ نویسه و شامل حرف و عدد باشد."
+                etPassword.requestFocus()
                 return showAuthError("رمز عبور باید حداقل ۸ نویسه و شامل حرف و عدد باشد.")
             }
         }
@@ -158,8 +196,16 @@ class AuthActivity : Activity() {
         val displayName = etProfileDisplay.text.toString().trim()
         val username = etProfileUsername.text.toString().trim()
         tvProfileError.visibility = View.GONE
-        if (displayName.isEmpty()) return showProfileError("نام نمایشی را وارد کنید.")
+        etProfileDisplay.error = null
+        etProfileUsername.error = null
+        if (displayName.isEmpty()) {
+            etProfileDisplay.error = "نام نمایشی را وارد کنید."
+            etProfileDisplay.requestFocus()
+            return showProfileError("نام نمایشی را وارد کنید.")
+        }
         if (!USERNAME_RE.matches(username)) {
+            etProfileUsername.error = "نام کاربری باید ۳ تا ۲۴ نویسه و فقط حروف انگلیسی، عدد، نقطه یا _ باشد."
+            etProfileUsername.requestFocus()
             return showProfileError("نام کاربری باید ۳ تا ۲۴ نویسه و فقط حروف انگلیسی، عدد، نقطه یا _ باشد.")
         }
         val userId = app.api.myUserId ?: return showProfileError("نشست منقضی شده؛ دوباره وارد شوید.")

@@ -46,9 +46,12 @@
             android:textSize="13sp" />
     </LinearLayout>
 
-    <TextView
+    <ImageView
         android:id="@+id/tvUserLock"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="16sp" />
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:contentDescription="امکان چت امن دارد"
+        android:src="@drawable/ic_lock"
+        android:tint="@color/text2"
+        android:visibility="gone" />
 </LinearLayout>

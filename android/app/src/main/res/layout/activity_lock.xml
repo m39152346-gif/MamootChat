@@ -7,15 +7,16 @@
     android:orientation="vertical"
     android:padding="32dp">
 
-    <TextView
+    <ImageView
         android:layout_width="76dp"
         android:layout_height="76dp"
         android:layout_marginTop="48dp"
         android:background="@drawable/logo_circle"
-        android:gravity="center"
-        android:text="🔒"
-        android:textColor="@color/white"
-        android:textSize="30sp" />
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:padding="22dp"
+        android:src="@drawable/ic_lock"
+        android:tint="@color/white" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -65,7 +66,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:backgroundTint="@color/brand"
+        android:backgroundTint="@color/brand_button"
         android:text="باز کردن"
         android:textColor="@color/white" />
 

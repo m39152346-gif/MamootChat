@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.TextView
 import ir.mamoot.app.R
 import ir.mamoot.app.net.Profile
@@ -102,7 +103,8 @@ class UserAdapter(
         )
         view.findViewById<TextView>(R.id.tvUserName).text = user.displayName
         view.findViewById<TextView>(R.id.tvUserHandle).text = "@${user.username}"
-        view.findViewById<TextView>(R.id.tvUserLock).text = if (user.e2eIdentityKey != null) "🔒" else ""
+        view.findViewById<ImageView>(R.id.tvUserLock).visibility =
+            if (user.e2eIdentityKey != null) View.VISIBLE else View.GONE
         return view
     }
 }
@@ -152,6 +154,9 @@ class MessageAdapter(
         }
 
         val bubble = view.findViewById<TextView>(R.id.tvBubble)
+        // Bubble width is relative to the screen (78%), not a fixed 300dp cap
+        // that was ~94% on small phones and cramped on tablets (UI_AUDIT D12).
+        bubble.maxWidth = (context.resources.displayMetrics.widthPixels * 0.78f).toInt()
         val meta = view.findViewById<TextView>(R.id.tvMeta)
         val quote = view.findViewById<TextView>(R.id.tvQuote)
         val reactionsView = view.findViewById<TextView>(R.id.tvReactions)
@@ -295,7 +300,9 @@ class MessageAdapter(
         bubble.translationY = 0f
         bubble.scaleX = 1f
         bubble.scaleY = 1f
-        if (msg.localId > lastAnimatedLocalId && position >= items.size - 3) {
+        if (msg.localId > lastAnimatedLocalId && position >= items.size - 3 &&
+            !UiUtil.motionReduced(context)
+        ) {
             lastAnimatedLocalId = msg.localId
             bubble.alpha = 0f
             bubble.translationY = 26f

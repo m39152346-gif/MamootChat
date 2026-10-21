@@ -11,7 +11,8 @@
     -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="104dp"
+        android:layout_height="wrap_content"
+        android:minHeight="104dp"
         android:background="@color/surface"
         android:elevation="4dp">
 
@@ -21,7 +22,8 @@
             android:layout_gravity="center_horizontal"
             android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:paddingTop="8dp">
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
 
             <TextView
                 android:id="@+id/tvChatAvatar"
@@ -35,6 +37,8 @@
 
             <LinearLayout
                 android:id="@+id/layoutChatHeader"
+                android:contentDescription="اطلاعات گفتگو"
+                android:focusable="true"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
@@ -61,6 +65,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="3dp"
+                    android:importantForAccessibility="no"
                     android:text="‹"
                     android:textColor="@color/text2"
                     android:textSize="16sp" />
@@ -80,13 +85,13 @@
 
         <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
             android:layout_gravity="start|center_vertical"
             android:layout_marginStart="12dp"
             android:background="@drawable/icon_circle_bg"
             android:contentDescription="بازگشت"
-            android:padding="9dp"
+            android:padding="14dp"
             android:src="@drawable/ic_chevron_rtl"
             android:tint="@color/brand" />
 
@@ -99,22 +104,22 @@
 
             <ImageButton
                 android:id="@+id/btnChatSearch"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
                 android:background="@drawable/icon_circle_bg"
                 android:contentDescription="جستجو در گفتگو"
-                android:padding="9dp"
+                android:padding="14dp"
                 android:src="@drawable/ic_search"
                 android:tint="@color/text2" />
 
             <ImageButton
                 android:id="@+id/btnSecurity"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/icon_circle_bg"
                 android:contentDescription="امنیت گفتگو"
-                android:padding="9dp"
+                android:padding="14dp"
                 android:src="@drawable/ic_lock"
                 android:tint="@color/text2" />
         </LinearLayout>
@@ -149,7 +154,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:backgroundTint="@color/brand"
+            android:backgroundTint="@color/brand_button"
             android:textColor="@color/white"
             android:visibility="gone" />
     </LinearLayout>
@@ -176,32 +181,35 @@
             android:textColor="@color/text"
             android:textColorHint="@color/text2" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnSearchPrev"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:contentDescription="قبلی"
-            android:text="▲"
-            android:textColor="@color/text" />
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="نتیجه‌ی قبلی"
+            android:padding="12dp"
+            android:src="@drawable/ic_chevron_up"
+            android:tint="@color/text" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnSearchNext"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:contentDescription="بعدی"
-            android:text="▼"
-            android:textColor="@color/text" />
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="نتیجه‌ی بعدی"
+            android:padding="12dp"
+            android:src="@drawable/ic_chevron_down"
+            android:tint="@color/text" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnSearchClose"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="بستن جستجو"
-            android:text="✕"
-            android:textColor="@color/text" />
+            android:padding="12dp"
+            android:src="@drawable/ic_close"
+            android:tint="@color/text" />
     </LinearLayout>
 
     <Button
@@ -232,6 +240,7 @@
         <!-- Animated three-dot typing bubble (peer messages side). -->
         <LinearLayout
             android:id="@+id/layoutTyping"
+            android:contentDescription="در حال نوشتن است"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|start"
@@ -246,9 +255,9 @@
             android:paddingBottom="10dp"
             android:visibility="gone">
 
-            <TextView android:id="@+id/tvTypeDot1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
-            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
-            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
+            <TextView android:id="@+id/tvTypeDot3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="●" android:textColor="@color/text2" android:importantForAccessibility="no" android:textSize="8sp" />
         </LinearLayout>
 
         <!-- Telegram-style scroll-to-bottom with unread-below badge. -->
@@ -263,12 +272,12 @@
 
             <ImageButton
                 android:id="@+id/btnScrollDown"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="@dimen/touch_min"
+                android:layout_height="@dimen/touch_min"
                 android:background="@drawable/icon_circle_bg"
                 android:contentDescription="رفتن به تازه‌ترین پیام"
                 android:elevation="5dp"
-                android:padding="11dp"
+                android:padding="13dp"
                 android:src="@drawable/ic_chevron_down"
                 android:tint="@color/text" />
 
@@ -283,7 +292,7 @@
                 android:paddingStart="5dp"
                 android:paddingEnd="5dp"
                 android:textColor="@color/white"
-                android:textSize="10.5sp"
+                android:textSize="@dimen/text_meta"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </FrameLayout>
@@ -311,14 +320,15 @@
             android:textColor="@color/text2"
             android:textSize="12.5sp" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnCancelReply"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="لغو پاسخ"
-            android:text="✕"
-            android:textColor="@color/text2" />
+            android:padding="14dp"
+            android:src="@drawable/ic_close"
+            android:tint="@color/text2" />
     </LinearLayout>
 
     <!-- Floating composer card: detached pill + circular blue send. -->
@@ -347,7 +357,7 @@
             android:hint="پیام بنویسید…"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
-            android:minHeight="42dp"
+            android:minHeight="@dimen/touch_min"
             android:paddingStart="16dp"
             android:paddingTop="9dp"
             android:paddingEnd="16dp"
@@ -358,28 +368,26 @@
 
         <ImageButton
             android:id="@+id/btnTtl"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
             android:layout_gravity="bottom"
             android:layout_marginStart="6dp"
-            android:layout_marginBottom="3dp"
             android:background="@drawable/icon_circle_bg"
             android:contentDescription="حذف خودکار پیام"
-            android:padding="8dp"
+            android:padding="14dp"
             android:src="@drawable/ic_timer"
             android:tint="@color/text2"
             android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/btnSend"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
             android:layout_gravity="bottom"
             android:layout_marginStart="6dp"
-            android:layout_marginBottom="2dp"
             android:background="@drawable/send_circle_bg"
             android:contentDescription="ارسال"
-            android:padding="9dp"
+            android:padding="13dp"
             android:src="@drawable/ic_send_up"
             android:tint="@color/white" />
     </LinearLayout>

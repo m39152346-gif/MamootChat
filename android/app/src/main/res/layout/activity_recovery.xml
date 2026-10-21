@@ -11,15 +11,16 @@
         android:orientation="vertical"
         android:padding="32dp">
 
-        <TextView
+        <ImageView
             android:layout_width="76dp"
             android:layout_height="76dp"
             android:layout_marginTop="24dp"
             android:background="@drawable/logo_circle"
-            android:gravity="center"
-            android:text="🗝️"
-            android:textColor="@color/white"
-            android:textSize="30sp" />
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:padding="22dp"
+            android:src="@drawable/ic_key"
+            android:tint="@color/white" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -44,7 +45,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:backgroundTint="@color/brand"
+            android:backgroundTint="@color/brand_button"
             android:text="بازیابی از فایل پشتیبان"
             android:textColor="@color/white" />
 
@@ -53,7 +54,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:backgroundTint="@color/danger"
+            android:backgroundTint="@color/danger_button"
             android:text="ساخت کلید تازه و ادامه"
             android:textColor="@color/white" />
     </LinearLayout>

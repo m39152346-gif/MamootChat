@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mamoot design tokens — spacing / radius / type scale / touch (docs/UI_DESIGN.md).
+  New and edited layouts must use these; legacy literals are migrated gradually
+  (remaining counts tracked in docs/UI_AUDIT.md).
+-->
+<resources>
+    <!-- Touch: every important control is at least this big (visual may be inset). -->
+    <dimen name="touch_min">48dp</dimen>
+
+    <!-- Spacing scale -->
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_s">8dp</dimen>
+    <dimen name="space_m">12dp</dimen>
+    <dimen name="space_l">16dp</dimen>
+    <dimen name="space_xl">20dp</dimen>
+    <dimen name="space_xxl">24dp</dimen>
+    <dimen name="screen_padding">16dp</dimen>
+
+    <!-- Corner radii -->
+    <dimen name="radius_s">10dp</dimen>
+    <dimen name="radius_m">14dp</dimen>
+    <dimen name="radius_l">18dp</dimen>
+    <dimen name="radius_xl">24dp</dimen>
+    <dimen name="radius_sheet">28dp</dimen>
+
+    <!-- Type scale (Vazirmatn). Nothing informative below text_meta. -->
+    <dimen name="text_meta">11sp</dimen>
+    <dimen name="text_caption">12sp</dimen>
+    <dimen name="text_body_s">14sp</dimen>
+    <dimen name="text_button">15sp</dimen>
+    <dimen name="text_body">16sp</dimen>
+    <dimen name="text_title">18sp</dimen>
+    <dimen name="text_headline">20sp</dimen>
+    <dimen name="text_display">30sp</dimen>
+
+    <!-- Avatars / icons -->
+    <dimen name="avatar_s">44dp</dimen>
+    <dimen name="avatar_m">54dp</dimen>
+    <dimen name="icon_glyph">20dp</dimen>
+</resources>

@@ -129,7 +129,7 @@ class ChatActivity : Activity() {
             updateScrollDownButton()
             lvMessages.smoothScrollToPosition(adapter.count - 1)
         }
-        findViewById<Button>(R.id.btnCancelReply).setOnClickListener { clearReply() }
+        findViewById<View>(R.id.btnCancelReply).setOnClickListener { clearReply() }
         etMessage.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(text: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -186,9 +186,9 @@ class ChatActivity : Activity() {
         btnTtl.setOnClickListener { showTtlPicker() }
         btnLoadOlder.setOnClickListener { loadOlder() }
         findViewById<View>(R.id.btnChatSearch).setOnClickListener { toggleSearch(true) }
-        findViewById<Button>(R.id.btnSearchClose).setOnClickListener { toggleSearch(false) }
-        findViewById<Button>(R.id.btnSearchNext).setOnClickListener { jumpToMatch(+1) }
-        findViewById<Button>(R.id.btnSearchPrev).setOnClickListener { jumpToMatch(-1) }
+        findViewById<View>(R.id.btnSearchClose).setOnClickListener { toggleSearch(false) }
+        findViewById<View>(R.id.btnSearchNext).setOnClickListener { jumpToMatch(+1) }
+        findViewById<View>(R.id.btnSearchPrev).setOnClickListener { jumpToMatch(-1) }
         etChatSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
@@ -358,8 +358,11 @@ class ChatActivity : Activity() {
 
     private fun updateSendButton(active: Boolean) {
         if (!::btnSend.isInitialized) return
+        // Real disabled state (not just alpha): TalkBack announces it and
+        // taps on an empty composer no longer fire a no-op send (UI_AUDIT D9).
+        btnSend.isEnabled = active
         btnSend.alpha = if (active) 1f else 0.45f
-        if (active && !sendWasActive) {
+        if (active && !sendWasActive && !UiUtil.motionReduced(this)) {
             btnSend.scaleX = 0.8f
             btnSend.scaleY = 0.8f
             btnSend.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
@@ -372,7 +375,13 @@ class ChatActivity : Activity() {
         val show = peerTypingNow && conv.kind != "group"
         layoutTyping.visibility = if (show) View.VISIBLE else View.GONE
         handler.removeCallbacks(typeDotRunnable)
-        if (show) handler.post(typeDotRunnable)
+        if (show) {
+            if (UiUtil.motionReduced(this)) {
+                typeDots.forEach { it.alpha = 1f }
+            } else {
+                handler.post(typeDotRunnable)
+            }
+        }
     }
 
     private fun loadOlder() {
@@ -400,9 +409,9 @@ class ChatActivity : Activity() {
         // The composer always works now: without a secret session this is a
         // normal chat; with one, messages are end-to-end encrypted.
         etMessage.isEnabled = true
-        btnSend.isEnabled = true
+        updateSendButton(etMessage.text?.isNotBlank() == true)
         btnTtl.visibility = if (state == SessionUiState.READY) View.VISIBLE else View.GONE
-        etMessage.hint = if (state == SessionUiState.READY) "پیام امن بنویسید… 🔒" else "پیام بنویسید…"
+        etMessage.hint = if (state == SessionUiState.READY) "پیام امن بنویسید…" else "پیام بنویسید…"
 
         refreshStatusLine()
 

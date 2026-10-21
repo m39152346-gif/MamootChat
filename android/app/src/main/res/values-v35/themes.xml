@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 15 enforces edge-to-edge for targetSdk 35 and ignores statusBarColor.
+  Mamoot's screens do not yet handle WindowInsets, so without this opt-out the
+  gradient heroes/composer would slide under the system bars on Android 15.
+  Temporary, documented opt-out; migrate to real insets before targetSdk 36
+  (tracked in docs/UI_AUDIT.md, item D15).
+-->
+<resources>
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorAccent">@color/brand</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text2</item>
+        <item name="android:statusBarColor">@color/chat_bg</item>
+        <item name="android:navigationBarColor">@color/chat_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:fontFamily">@font/vazirmatn</item>
+        <item name="android:buttonStyle">@style/MamootButton</item>
+        <item name="android:windowAnimationStyle">@style/AppWindowAnim</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+    <style name="SplashTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+        <item name="android:statusBarColor">@color/brand</item>
+        <item name="android:navigationBarColor">@color/brand2</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>

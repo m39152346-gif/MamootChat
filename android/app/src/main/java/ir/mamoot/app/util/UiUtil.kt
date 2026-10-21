@@ -1,5 +1,7 @@
 package ir.mamoot.app.util
 
+import android.content.Context
+import android.provider.Settings
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -94,12 +96,26 @@ object UiUtil {
         return (parts[0].take(1) + parts[1].take(1))
     }
 
+    /**
+     * True when the system animator scale is 0 (user asked to reduce motion).
+     * Non-essential animations (typing dots, message entrance, send pop) must
+     * check this and render their static end-state instead.
+     */
+    fun motionReduced(context: Context): Boolean = try {
+        Settings.Global.getFloat(
+            context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+        ) == 0f
+    } catch (e: Exception) {
+        false
+    }
+
     /** Deterministic avatar color (ARGB) from a stable seed. */
     fun avatarColor(seed: String): Int {
-        // iOS system colors: vivid on white, still readable with white initials.
+        // Same color families as before (stable per-user index), darkened so
+        // white initials reach >= 4.5:1 on every swatch (docs/UI_AUDIT.md D7).
         val palette = intArrayOf(
-            0xFF007AFF.toInt(), 0xFF34C759.toInt(), 0xFFFF9500.toInt(), 0xFFFF2D55.toInt(),
-            0xFFAF52DE.toInt(), 0xFF32ADE6.toInt(), 0xFFFF3B30.toInt(), 0xFF5856D6.toInt(),
+            0xFF0063C7.toInt(), 0xFF1E7E34.toInt(), 0xFFB25E00.toInt(), 0xFFD81B4C.toInt(),
+            0xFF8E3FBF.toInt(), 0xFF0E7FA8.toInt(), 0xFFD93025.toInt(), 0xFF4B49B8.toInt(),
         )
         var hash = 0
         for (ch in seed) hash = hash * 31 + ch.code

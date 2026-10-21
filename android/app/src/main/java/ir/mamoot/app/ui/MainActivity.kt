@@ -21,6 +21,9 @@ class MainActivity : Activity() {
 
     private lateinit var adapter: ConversationAdapter
     private lateinit var tvEmpty: View
+    private lateinit var progressMain: View
+    private lateinit var layoutMainError: View
+    private lateinit var tvMainError: TextView
     private lateinit var lvConversations: ListView
     private val handler = Handler(Looper.getMainLooper())
     private var errorShown = false
@@ -63,6 +66,13 @@ class MainActivity : Activity() {
 
         adapter = ConversationAdapter(this)
         tvEmpty = findViewById(R.id.tvEmpty)
+        progressMain = findViewById(R.id.progressMain)
+        layoutMainError = findViewById(R.id.layoutMainError)
+        tvMainError = findViewById(R.id.tvMainError)
+        findViewById<View>(R.id.btnMainRetry).setOnClickListener {
+            layoutMainError.visibility = View.GONE
+            refresh()
+        }
         lvConversations = findViewById(R.id.lvConversations)
         lvConversations.adapter = adapter
         lvConversations.setOnItemClickListener { _, _, position, _ ->
@@ -111,6 +121,12 @@ class MainActivity : Activity() {
     private fun refresh() {
         if (refreshing) return
         refreshing = true
+        // Before the first answer arrives we cannot distinguish "loading"
+        // from "no conversations": show the spinner, never the empty art.
+        if (::progressMain.isInitialized && adapter.count == 0) {
+            progressMain.visibility = View.VISIBLE
+            tvEmpty.visibility = View.GONE
+        }
         app.repo.conversations { result ->
             refreshing = false
             result.onSuccess { items ->
@@ -129,6 +145,8 @@ class MainActivity : Activity() {
                 }
                 tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
                 lvConversations.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+                progressMain.visibility = View.GONE
+                layoutMainError.visibility = View.GONE
                 errorShown = false
             }.onFailure { e ->
                 pollFailures++
@@ -137,8 +155,13 @@ class MainActivity : Activity() {
                     errorShown = true
                     Toast.makeText(this, e.message ?: "خطا در دریافت گفتگوها", Toast.LENGTH_SHORT).show()
                 }
+                progressMain.visibility = View.GONE
+                // An error is not an empty inbox: say what happened and offer
+                // a retry instead of showing the "no chats yet" illustration.
+                tvMainError.text = e.message ?: "خطا در دریافت گفتگوها"
+                layoutMainError.visibility = View.VISIBLE
                 if (adapter.count == 0) {
-                    tvEmpty.visibility = View.VISIBLE
+                    tvEmpty.visibility = View.GONE
                     lvConversations.visibility = View.GONE
                 }
             }

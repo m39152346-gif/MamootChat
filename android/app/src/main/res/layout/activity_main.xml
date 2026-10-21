@@ -21,14 +21,15 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
                     android:background="@drawable/glass_circle_bg"
+                    android:importantForAccessibility="no"
                     android:gravity="center"
                     android:text="م"
                     android:textColor="@color/white"
@@ -47,11 +48,11 @@
 
                 <ImageButton
                     android:id="@+id/btnSettings"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="@dimen/touch_min"
+                    android:layout_height="@dimen/touch_min"
                     android:background="@drawable/glass_circle_bg"
                     android:contentDescription="تنظیمات"
-                    android:padding="10dp"
+                    android:padding="14dp"
                     android:src="@drawable/ic_sliders"
                     android:tint="@color/white" />
             </LinearLayout>
@@ -84,6 +85,50 @@
             android:elevation="6dp"
             android:orientation="vertical"
             android:paddingTop="10dp">
+
+            <!-- First-load spinner (before it we cannot tell empty from loading). -->
+            <ProgressBar
+                android:id="@+id/progressMain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="40dp"
+                android:contentDescription="در حال بارگذاری گفتگوها"
+                android:visibility="gone" />
+
+            <!-- Network error is NOT the empty state: precise message + retry. -->
+            <LinearLayout
+                android:id="@+id/layoutMainError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="12dp"
+                android:background="@color/surface2"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvMainError"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/danger"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnMainRetry"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="تلاش دوباره"
+                    android:textColor="@color/brand" />
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/tvEmpty"
@@ -118,7 +163,7 @@
                     android:layout_marginTop="6dp"
                     android:gravity="center"
                     android:lineSpacingMultiplier="1.5"
-                    android:text="با دکمه‌ی شناور ✎ اولین گفتگو را شروع کنید؛\nهر وقت خواستید همان‌جا چت امن را هم فعال کنید."
+                    android:text="با دکمه‌ی شناورِ پایین صفحه اولین گفتگو را شروع کنید؛\nهر وقت خواستید همان‌جا چت امن را هم فعال کنید."
                     android:textColor="@color/text2"
                     android:textSize="13.5sp" />
             </LinearLayout>

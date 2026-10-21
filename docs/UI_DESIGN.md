@@ -95,3 +95,16 @@ the shipped tokens lives in `docs/ui-preview/index.html`.
   plain text.
 - Everything functional kept its view IDs — this release is purely
   visual; no protocol, storage or sync behaviour changed.
+
+## v0.5.1 — measured quality pass (2026-10-21)
+
+Full engineering audit in `docs/UI_AUDIT.md`. Headlines: all color tokens now
+pass WCAG AA by computation (12 failing pairs → 0; new `brand_button` /
+`danger_button` fill tokens, bubble gradient #0069D2→#0057D9, light `text2`
+#636369); every important control has a 48dp touch box (`@dimen/touch_min`,
+visual circles inset inside); `res/values/dimens.xml` introduced (spacing,
+radius, type scale); loading/empty/error are three distinct states on Main;
+auth has persistent labels + per-field errors + show-password; system
+reduced-motion is respected; launcher foreground fits the adaptive-icon safe
+zone; Android 15 edge-to-edge temporarily opted out (`values-v35`) pending a
+real WindowInsets migration before targetSdk 36.

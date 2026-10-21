@@ -16,12 +16,12 @@
 
         <ImageButton
             android:id="@+id/btnBackNew"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="@dimen/touch_min"
+            android:layout_height="@dimen/touch_min"
             android:layout_marginStart="8dp"
             android:background="@drawable/icon_circle_bg"
             android:contentDescription="بازگشت"
-            android:padding="9dp"
+            android:padding="14dp"
             android:src="@drawable/ic_chevron_rtl"
             android:tint="@color/brand" />
 
@@ -48,9 +48,9 @@
             android:id="@+id/btnNewModeDm"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="@dimen/touch_min"
             android:layout_weight="1"
-            android:text="💬 گفتگوی خصوصی"
+            android:text="گفتگوی خصوصی"
             android:textColor="@color/text"
             android:textStyle="bold" />
 
@@ -58,9 +58,9 @@
             android:id="@+id/btnNewModeGroup"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"
-            android:layout_height="44dp"
+            android:layout_height="@dimen/touch_min"
             android:layout_weight="1"
-            android:text="👥 ساخت گروه"
+            android:text="ساخت گروه"
             android:textColor="@color/text"
             android:textStyle="bold" />
     </LinearLayout>
@@ -92,7 +92,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:backgroundTint="@color/brand"
+            android:backgroundTint="@color/brand_button"
             android:enabled="false"
             android:text="ساخت گروه (۰ عضو انتخاب شده)"
             android:textColor="@color/white" />

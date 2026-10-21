@@ -1,0 +1,39 @@
+===== LIGHT (0.5.1) =====
+PASS 18.86:1 (need 4.5)  body text / surface
+PASS 16.90:1 (need 4.5)  body text / bg
+PASS  5.97:1 (need 4.5)  secondary / surface
+PASS  5.35:1 (need 4.5)  secondary / surface2
+PASS  4.92:1 (need 4.5)  secondary / bubble_theirs
+PASS  5.15:1 (need 4.5)  secondary / wall_end(meta)
+PASS  5.28:1 (need 4.5)  white / brand_button (primary btns)
+PASS  5.31:1 (need 4.5)  white / bubble start
+PASS  6.24:1 (need 4.5)  white / bubble end
+PASS  4.94:1 (need 4.5)  on_brand_muted / hero start
+PASS  4.71:1 (need 4.5)  on_brand_muted / hero end(brand2)
+PASS 15.56:1 (need 4.5)  text / bubble_theirs
+PASS  4.77:1 (need 4.5)  danger text / surface
+PASS  4.77:1 (need 4.5)  white / danger_button
+PASS  5.28:1 (need 4.5)  brand accent text / surface
+PASS  5.14:1 (need 3.0)  ok graphic / surface (>=3)
+PASS  4.26:1 (need 3.0)  input_border / chat_bg (>=3)
+PASS  3.82:1 (need 3.0)  input_border / surface2 fill (>=3)
+===== DARK (0.5.1) =====
+PASS 17.01:1 (need 4.5)  body text / surface
+PASS 21.00:1 (need 4.5)  body text / bg
+PASS  5.94:1 (need 4.5)  secondary / surface
+PASS  4.86:1 (need 4.5)  secondary / surface2
+PASS  5.31:1 (need 4.5)  secondary / bubble_theirs
+PASS  7.15:1 (need 4.5)  secondary / wall_end(meta)
+PASS  5.31:1 (need 4.5)  white / brand_button (primary btns)
+PASS  5.31:1 (need 4.5)  white / bubble start
+PASS  6.24:1 (need 4.5)  white / bubble end
+PASS  4.94:1 (need 4.5)  on_brand_muted / hero start
+PASS  4.71:1 (need 4.5)  on_brand_muted / hero end(brand2)
+PASS 15.21:1 (need 4.5)  text / bubble_theirs
+PASS  4.99:1 (need 4.5)  danger text / surface
+PASS  4.77:1 (need 4.5)  white / danger_button
+PASS  4.66:1 (need 4.5)  brand accent text / surface
+PASS  8.42:1 (need 3.0)  ok graphic / surface (>=3)
+PASS  5.14:1 (need 3.0)  input_border / chat_bg (>=3)
+PASS  3.41:1 (need 3.0)  input_border / surface2 fill (>=3)
+TOTAL FAILS: 0
